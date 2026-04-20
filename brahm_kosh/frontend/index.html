@@ -9,8 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="//unpkg.com/3d-force-graph"></script>
+    <script src="//unpkg.com/three"></script>
     <script src="//unpkg.com/three-spritetext"></script>
+    <script src="//unpkg.com/3d-force-graph"></script>
 
     <script id="tailwind-config">
         tailwind.config = {
@@ -264,6 +265,7 @@
             const tbody = document.getElementById('list-table-body');
             const childrenMap = {};
             data.nodes.forEach(n => {
+                if (n.id === 'root') return; // Prevent infinite recursion!
                 const p = n.parent || 'root';
                 if (!childrenMap[p]) childrenMap[p] = [];
                 childrenMap[p].push(n);
