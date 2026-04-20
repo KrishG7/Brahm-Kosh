@@ -149,6 +149,10 @@ def _run_visual(path: str, top_n: int, lang: str | None = None):
 
     meta = project.metadata
 
+    lang_str = ", ".join(f"{lang} ({count})" for lang, count in meta.language_file_counts.items())
+    if not lang_str:
+        lang_str = ", ".join(meta.languages)
+
     # Stats panel
     stats_text = (
         f"[bold white]Project:[/bold white]  {project.name}\n"
@@ -156,7 +160,7 @@ def _run_visual(path: str, top_n: int, lang: str | None = None):
         f"[bold white]Lines:[/bold white]    {meta.total_lines:,}\n"
         f"[bold white]Symbols:[/bold white]  {meta.total_symbols}\n"
         f"[bold white]Modules:[/bold white]  {meta.total_modules}\n"
-        f"[bold white]Language:[/bold white] {', '.join(meta.languages)}\n"
+        f"[bold white]Language:[/bold white] {lang_str}\n"
         f"[bold white]Avg Complexity:[/bold white] {_complexity_badge(meta.avg_complexity)}\n"
         f"[dim]Analyzed in {elapsed:.2f}s[/dim]"
     )
@@ -197,6 +201,7 @@ def _run_visual(path: str, top_n: int, lang: str | None = None):
         table.add_column("#", style="dim", width=3, justify="right")
         table.add_column("Heat", width=4, justify="center")
         table.add_column("File", style="white", min_width=20)
+        table.add_column("Language", style="cyan", min_width=10)
         table.add_column("Symbol", style="bold white", min_width=15)
         table.add_column("Kind", style="dim", width=8)
         table.add_column("Score", justify="right", width=6)
@@ -213,6 +218,7 @@ def _run_visual(path: str, top_n: int, lang: str | None = None):
                 str(hs.rank),
                 _heat_emoji(hs.complexity),
                 hs.file_path,
+                hs.language,
                 hs.symbol_name,
                 hs.symbol_kind,
                 f"[{score_style}]{hs.complexity:.0f}[/{score_style}]",

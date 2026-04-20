@@ -13,7 +13,7 @@ It is a **codebase understanding engine** built around one belief:
 
 > Humans understand systems visually and structurally — not line by line.
 
-Run it on any Python repo. Instead of randomly clicking files, you instantly see:
+Run it on a Python, JavaScript, TypeScript, or C/C++ repo. Instead of randomly clicking files, you instantly see:
 
 - 📁 **Hierarchical structure** — projects, modules, files, symbols
 - 🔥 **Complexity scoring** — every function and file scored 0–100
@@ -43,15 +43,24 @@ brahm-kosh analyze . --top 20
 brahm-kosh analyze . --json
 ```
 
+### Check Available Adapters
+
+```bash
+brahm-kosh list-adapters
+```
+
 ## Architecture
 
 ```
 brahm_kosh/
 ├── models.py          # Universal code model (language-agnostic)
-├── engine.py          # Orchestrator: parse → score → rank → infer
+├── engine.py          # Orchestrator: language auto-discovery, merge sub-projects
 ├── cli.py             # Rich CLI output
 ├── adapters/
-│   └── python_adapter.py  # Python AST parser
+│   ├── registry.py    # Auto-discovery mechanism 
+│   ├── python_adapter.py      # Python AST parser
+│   ├── javascript_adapter.py  # JavaScript/TypeScript Regex parser
+│   └── c_adapter.py           # C/C++ Regex parser
 └── analysis/
     ├── complexity.py  # Structural complexity scoring
     ├── hotspots.py    # Top-N hotspot ranking
@@ -60,7 +69,7 @@ brahm_kosh/
 
 **Philosophy: One brain, many languages.**
 
-The universal code model (`Project → Module → File → Symbol`) is language-agnostic. Language adapters are pluggable. Today it's Python. Tomorrow: JS, Java, C/C++.
+The universal code model (`Project → Module → File → Symbol`) is language-agnostic. Language adapters are pluggable, making the analysis extensible while keeping reporting identical across all tech stacks.
 
 ## Complexity Scoring
 
@@ -79,9 +88,9 @@ Files are scored as 60% average + 40% max (hotspot pull).
 
 ## The Vision
 
-**v0.1** (now): Structural awareness — the mirror.
-**v1.0**: Architectural awareness — dependency graphs, circular imports, impact simulation.
-**v2.0**: Predictive awareness — git churn, error propagation, drift detection.
+**v1.0** (now): Multi-Language Structural awareness — the mirror.
+**v2.0**: Architectural awareness — dependency graphs, circular imports, impact simulation.
+**v3.0**: Predictive awareness — git churn, error propagation, drift detection.
 
 ---
 

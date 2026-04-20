@@ -171,6 +171,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
             line_count=0,
             symbols=[],
             purpose="⚠️ IO Error",
+            language="Python",
         )
 
     try:
@@ -186,6 +187,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
             line_count=lines,
             symbols=[],
             purpose="⚠️ Syntax Error",
+            language="Python",
         )
 
     lines = source.count("\n") + 1
@@ -204,6 +206,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         relative_path=rel_path,
         line_count=lines,
         symbols=symbols,
+        language="Python",
     )
 
 

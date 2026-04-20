@@ -287,6 +287,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         return FileModel(
             name=name, path=file_path, relative_path=rel_path,
             line_count=0, symbols=[], purpose="⚠️ IO Error",
+            language="JavaScript/TypeScript",
         )
 
     lines = source.splitlines()
@@ -304,6 +305,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         relative_path=rel_path,
         line_count=line_count,
         symbols=symbols,
+        language="JavaScript/TypeScript",
     )
 
 

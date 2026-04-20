@@ -93,6 +93,7 @@ class FileModel:
     symbols: list[Symbol] = field(default_factory=list)
     complexity: float = 0.0
     purpose: Optional[str] = None
+    language: str = "Unknown"
 
     @property
     def heat_label(self) -> str:
@@ -123,6 +124,8 @@ class FileModel:
         }
         if self.purpose:
             d["purpose"] = self.purpose
+        if self.language != "Unknown":
+            d["language"] = self.language
         if self.symbols:
             d["symbols"] = [s.to_dict() for s in self.symbols]
         return d
@@ -196,6 +199,7 @@ class Metadata:
     total_symbols: int = 0
     total_modules: int = 0
     languages: list[str] = field(default_factory=list)
+    language_file_counts: dict[str, int] = field(default_factory=dict)
     avg_complexity: float = 0.0
     max_complexity_file: Optional[str] = None
     max_complexity_score: float = 0.0
@@ -207,6 +211,7 @@ class Metadata:
             "total_symbols": self.total_symbols,
             "total_modules": self.total_modules,
             "languages": self.languages,
+            "language_file_counts": self.language_file_counts,
             "avg_complexity": round(self.avg_complexity, 1),
             "max_complexity_file": self.max_complexity_file,
             "max_complexity_score": round(self.max_complexity_score, 1),
@@ -234,14 +239,14 @@ class Project:
             files.extend(m._all_files())
         return files
 
-    def all_symbols(self) -> list[tuple[str, Symbol]]:
-        """Flatten all symbols, returned as (file_path, symbol) tuples."""
+    def all_symbols(self) -> list[tuple[str, str, Symbol]]:
+        """Flatten all symbols, returned as (file_path, language, symbol) tuples."""
         results = []
         for f in self.all_files():
             for s in f.symbols:
-                results.append((f.relative_path, s))
+                results.append((f.relative_path, f.language, s))
                 for child in s.children:
-                    results.append((f.relative_path, child))
+                    results.append((f.relative_path, f.language, child))
         return results
 
     def compute_metadata(self) -> None:
@@ -252,6 +257,12 @@ class Project:
         self.metadata.total_symbols = sum(f.symbol_count for f in all_files)
         self.metadata.total_modules = len(self.modules)
         self.metadata.languages = list(set(self.metadata.languages)) or ["Python"]
+        
+        counts = {}
+        for f in all_files:
+            if f.language and f.language != "Unknown":
+                counts[f.language] = counts.get(f.language, 0) + 1
+        self.metadata.language_file_counts = counts
 
         if all_files:
             self.metadata.avg_complexity = (
