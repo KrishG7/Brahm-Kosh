@@ -10,6 +10,7 @@
     
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="//unpkg.com/3d-force-graph"></script>
+    <script src="//unpkg.com/three-spritetext"></script>
 
     <script id="tailwind-config">
         tailwind.config = {
@@ -259,50 +260,112 @@
             document.getElementById('stat-nodes').innerText = `Total Nodes: ${data.nodes.length}`;
             document.getElementById('stat-edges').innerText = `Total Edges: ${data.links.length}`;
 
-            // Initialize Grid/List View
+            // MAP DATA FOR RECURSIVE TREE GENERATION
             const tbody = document.getElementById('list-table-body');
-            data.nodes.filter(n => n.type === 'file').sort((a,b) => b.val - a.val).forEach(node => {
-                const tr = document.createElement('tr');
-                tr.className = "border-b border-outline-variant/10 hover:bg-surface-container transition-colors";
-                tr.innerHTML = `
-                    <td class="p-4 font-mono text-zinc-300">
-                        <div class="flex items-center gap-2">
-                            <span class="material-symbols-outlined text-[16px] text-[#00f2ff]">description</span>
-                            ${node.id}
-                        </div>
-                        <div class="text-[10px] text-zinc-500 mt-1 ml-6">${node.symbols ? node.symbols.length : 0} exposed materials</div>
-                    </td>
-                    <td class="p-4"><span class="bg-surface-container px-2 py-1 rounded text-xs text-outline border border-outline-variant/30">${node.language}</span></td>
-                    <td class="p-4 text-right">
-                        <span class="font-bold text-lg" style="color: ${heatColors[node.heat]}; text-shadow: 0 0 10px ${heatColors[node.heat]}66;">
-                            ${node.val - 1}
-                        </span>
-                    </td>
-                    <td class="p-4 text-zinc-400 italic">${node.purpose || '-'}</td>
-                `;
-                tbody.appendChild(tr);
+            const childrenMap = {};
+            data.nodes.forEach(n => {
+                const p = n.parent || 'root';
+                if (!childrenMap[p]) childrenMap[p] = [];
+                childrenMap[p].push(n);
             });
+            
+            // RECURSIVE BUILDER
+            function buildListTree(parentId, level=0) {
+                const children = childrenMap[parentId] || [];
+                // Sort folders first, then logic files by complexity
+                children.sort((a, b) => {
+                    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+                    return b.val - a.val;
+                });
+                
+                children.forEach(node => {
+                    const tr = document.createElement('tr');
+                    const isFolder = node.type === 'folder';
+                    
+                    tr.className = `border-b border-outline-variant/10 hover:bg-surface-container transition-colors row-item`;
+                    tr.setAttribute('data-parent', parentId);
+                    tr.setAttribute('data-id', node.id);
+                    tr.style.display = parentId !== 'root' ? 'none' : 'table-row'; // Hide nested natively
+
+                    const padding = (level * 24) + 16;
+                    
+                    let iconHtml = '';
+                    if (isFolder) {
+                        iconHtml = `<button onclick="toggleListFolder('${node.id}', event)" class="mr-2 hover:text-white transition-colors" style="width: 20px;"><span class="material-symbols-outlined text-[16px] transition-transform" id="chev-${node.id}">chevron_right</span></button>
+                                    <span class="material-symbols-outlined text-[16px] text-[#FFD700] mr-2">folder</span>`;
+                    } else {
+                        iconHtml = `<span class="inline-block w-[20px] mr-2"></span><span class="material-symbols-outlined text-[16px] text-[#00f2ff] mr-2">description</span>`;
+                    }
+
+                    tr.innerHTML = `
+                        <td class="p-4 py-2 font-mono" style="padding-left: ${padding}px;">
+                            <div class="flex items-center text-zinc-300">
+                                ${iconHtml}
+                                ${node.name}
+                            </div>
+                            ${!isFolder && node.symbols ? `<div class="text-[10px] text-zinc-500 mt-0.5" style="margin-left: 48px;">${node.symbols.length} materials</div>` : ''}
+                        </td>
+                        <td class="p-4 py-2">${!isFolder ? `<span class="bg-surface-container px-2 py-1 rounded text-[10px] text-outline border border-outline-variant/30">${node.language}</span>` : ''}</td>
+                        <td class="p-4 py-2 text-right">
+                            ${!isFolder ? `<span class="font-bold cursor-help" title="${node.heat}" style="color: ${heatColors[node.heat]}; text-shadow: 0 0 10px ${heatColors[node.heat]}66;">${node.val - 1}</span>` : ''}
+                        </td>
+                        <td class="p-4 py-2 text-zinc-400 italic text-[11px]">${!isFolder && node.purpose ? node.purpose : ''}</td>
+                    `;
+                    tbody.appendChild(tr);
+                    
+                    // Recurse heavily into subfolders!
+                    if (isFolder) {
+                        buildListTree(node.id, level + 1);
+                    }
+                });
+            }
+            
+            buildListTree('root', 0); // Trigger cascade
+            
+            // GLOBAL TOGGLE SCRIPT
+            window.toggleListFolder = function(folderId, event) {
+                event.stopPropagation();
+                const chev = document.getElementById('chev-' + folderId);
+                const isExpanded = chev.innerText === 'expand_more';
+                
+                chev.innerText = isExpanded ? 'chevron_right' : 'expand_more';
+                
+                const rows = document.querySelectorAll('.row-item');
+                rows.forEach(r => {
+                    if (r.getAttribute('data-parent') === folderId) {
+                        r.style.display = isExpanded ? 'none' : 'table-row';
+                        if (isExpanded) collapseChildren(r.getAttribute('data-id'));
+                    }
+                });
+                
+                function collapseChildren(id) {
+                    const c = document.getElementById('chev-' + id);
+                    if (c) c.innerText = 'chevron_right'; // Reset chevron state visually
+                    rows.forEach(r => {
+                        if (r.getAttribute('data-parent') === id) {
+                            r.style.display = 'none';
+                            collapseChildren(r.getAttribute('data-id')); // Close its children instantly
+                        }
+                    });
+                }
+            };
 
             // Initialize 3D Graph
             const elem = document.getElementById('3d-graph');
             const Graph = ForceGraph3D()(elem)
                 .graphData(getVisibleGraph())
-                .nodeRelSize(5) // Larger default bases
-                .nodeVal(node => Math.max(3, (node.val / 3))) // Distinct scaling
-                .nodeLabel(node => {
-                    const icon = node.type === 'folder' ? '📁' : '📄';
-                    const hint = node.type === 'folder' ? '<br><span style="color:#aaa;font-size:10px;">(Click to Expand/Collapse)</span>' : '';
-                    return `<div style="text-align: center; font-weight: bold; background: rgba(0,0,0,0.8); padding: 8px; border-radius: 6px; border: 1px solid #333;">
-                                <div style="font-size: 16px; color: ${heatColors[node.heat] || '#fff'}">${icon} ${node.name}</div>
-                                <div style="font-size: 11px; color: #888; margin-top: 4px;">${node.id}</div>
-                                ${node.type === 'file' ? `<div style="font-size: 12px; margin-top: 5px;">Complexity: <span style="color: ${heatColors[node.heat]};">${node.heat}</span></div>` : ''}
-                                ${hint}
-                            </div>`;
+                
+                // Use SpriteText instead of blank glowing spheres
+                .nodeThreeObject(node => {
+                    const sprite = new SpriteText(node.name);
+                    sprite.material.depthWrite = false; // Stay slightly above physics rendering bounds
+                    sprite.color = node.type === 'folder' ? '#FFD700' : (heatColors[node.heat] || '#fff');
+                    sprite.textHeight = node.type === 'folder' ? 6 : Math.max(3, (node.val / 3)); // files scale by complexity!
+                    sprite.strokeWidth = 0.6;
+                    sprite.strokeColor = "rgba(0,0,0,0.9)"; // Dark crisp border for legibility
+                    return sprite;
                 })
-                // Folders are gold/white, files are heat-colored
-                .nodeColor(node => node.type === 'folder' ? '#FFD700' : (heatColors[node.heat] || heatColors["Medium"]))
-                .nodeResolution(24) // Optimal res
-                .nodeOpacity(1.0)
+                .nodeResolution(24) // Optimal res for fallback boundaries
                 
                 // Link visuals (Structural vs Dependency)
                 .linkWidth(link => link.type === 'structural' ? 0.5 : 2.0)
