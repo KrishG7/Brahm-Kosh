@@ -78,10 +78,7 @@
         <span class="text-[#00f2ff] font-['Space_Grotesk'] tracking-tighter uppercase text-2xl font-black" style="text-shadow: 0 0 15px rgba(0,242,255,0.4)">Brahma-Kosha</span>
     </div>
     <div class="flex items-center gap-6">
-        <div class="flex items-center gap-3 text-zinc-400">
-            <button class="hover:text-[#00f2ff] transition-colors"><span class="material-symbols-outlined">account_tree</span></button>
-            <button class="hover:text-[#00f2ff] transition-colors"><span class="material-symbols-outlined">terminal</span></button>
-        </div>
+        <!-- Buttons removed directly to fix confusing UI -->
     </div>
 </header>
 
@@ -293,7 +290,7 @@
                     
                     let iconHtml = '';
                     if (isFolder) {
-                        iconHtml = `<button onclick="toggleListFolder('${node.id}', event)" class="mr-2 hover:text-white transition-colors" style="width: 20px;"><span class="material-symbols-outlined text-[16px] transition-transform" id="chev-${node.id}">chevron_right</span></button>
+                        iconHtml = `<button onclick="toggleFolderState('${node.id}', event)" class="mr-2 hover:text-white transition-colors" style="width: 20px;"><span class="material-symbols-outlined text-[16px] transition-transform" id="chev-${node.id}">chevron_right</span></button>
                                     <span class="material-symbols-outlined text-[16px] text-[#FFD700] mr-2">folder</span>`;
                     } else {
                         iconHtml = `<span class="inline-block w-[20px] mr-2"></span><span class="material-symbols-outlined text-[16px] text-[#00f2ff] mr-2">description</span>`;
@@ -315,7 +312,6 @@
                     `;
                     tbody.appendChild(tr);
                     
-                    // Recurse heavily into subfolders!
                     if (isFolder) {
                         buildListTree(node.id, level + 1);
                     }
@@ -324,32 +320,62 @@
             
             buildListTree('root', 0); // Trigger cascade
             
-            // GLOBAL TOGGLE SCRIPT
-            window.toggleListFolder = function(folderId, event) {
-                event.stopPropagation();
-                const chev = document.getElementById('chev-' + folderId);
-                const isExpanded = chev.innerText === 'expand_more';
-                
-                chev.innerText = isExpanded ? 'chevron_right' : 'expand_more';
-                
+            // BIDIRECTIONAL SYNC ENGINE (LIST + 3D)
+            window.syncListUI = function() {
                 const rows = document.querySelectorAll('.row-item');
                 rows.forEach(r => {
-                    if (r.getAttribute('data-parent') === folderId) {
-                        r.style.display = isExpanded ? 'none' : 'table-row';
-                        if (isExpanded) collapseChildren(r.getAttribute('data-id'));
-                    }
-                });
-                
-                function collapseChildren(id) {
-                    const c = document.getElementById('chev-' + id);
-                    if (c) c.innerText = 'chevron_right'; // Reset chevron state visually
-                    rows.forEach(r => {
-                        if (r.getAttribute('data-parent') === id) {
-                            r.style.display = 'none';
-                            collapseChildren(r.getAttribute('data-id')); // Close its children instantly
+                    const pid = r.getAttribute('data-parent');
+                    const id = r.getAttribute('data-id');
+                    
+                    // Visible only if all ancestors are expanded
+                    let isVisible = true;
+                    let curr = pid;
+                    while (curr && curr !== 'root') {
+                        if (!ExpandedFolders.has(curr)) {
+                            isVisible = false;
+                            break;
                         }
-                    });
+                        // Find ancestor's parent securely
+                        const node = data.nodes.find(n => n.id === curr);
+                        curr = node ? node.parent : null;
+                    }
+                    
+                    r.style.display = isVisible ? 'table-row' : 'none';
+                    
+                    const chev = document.getElementById('chev-' + id);
+                    if (chev) chev.innerText = ExpandedFolders.has(id) ? 'expand_more' : 'chevron_right';
+                });
+            };
+
+            window.toggleFolderState = function(folderId, event=null) {
+                if (event) event.stopPropagation();
+                
+                if (ExpandedFolders.has(folderId)) {
+                    // Collapse mode
+                    ExpandedFolders.delete(folderId);
+                    // Recursively remove descendants so they close natively
+                    const collapseDescendants = (id) => {
+                        const children = childrenMap[id] || [];
+                        children.forEach(c => {
+                            if (c.type === 'folder' && ExpandedFolders.has(c.id)) {
+                                ExpandedFolders.delete(c.id);
+                                collapseDescendants(c.id);
+                            }
+                        });
+                    };
+                    collapseDescendants(folderId);
+                } else {
+                    // Expand mode
+                    ExpandedFolders.add(folderId);
                 }
+                
+                // Blast state into 3D Graphic Engine 
+                if (window.GraphEngine) {
+                    window.GraphEngine.graphData(getVisibleGraph());
+                }
+                
+                // Blast state into Directory List UI
+                window.syncListUI();
             };
 
             // Initialize 3D Graph
@@ -381,16 +407,8 @@
                 .onNodeClick(node => {
                     
                     if (node.type === 'folder') {
-                        // Toggle folder expansion!
-                        if (ExpandedFolders.has(node.id)) {
-                            // Collapse: Removing it from set hides its children
-                            ExpandedFolders.delete(node.id);
-                        } else {
-                            // Expand
-                            ExpandedFolders.add(node.id);
-                        }
-                        // Re-render
-                        Graph.graphData(getVisibleGraph());
+                        // Tie directly into global sync mechanic
+                        window.toggleFolderState(node.id);
                     } else {
                         // File clicked: Update Inspector
                         const panel = document.getElementById('inspector-panel');
@@ -438,6 +456,9 @@
             // Fix Interactivity Lag: Use Native Engine Rotation instead of setInterval!
             Graph.controls().autoRotate = true;
             Graph.controls().autoRotateSpeed = 0.5;
+            
+            // Expose Graph to window for sync mechanic
+            window.GraphEngine = Graph;
         });
 
     // Load architectural AI data

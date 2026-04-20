@@ -31,14 +31,14 @@ FILE_NAME_PATTERNS: list[tuple[list[str], str]] = [
     (["config", "settings", "conf", "env", "constants", "defaults", "pom", "gradle", "properties", "csproj"], "⚙️ Configuration"),
     # APIs & routing
     (["api", "route", "router", "endpoint", "view", "handler", "urls"], "🌐 API / Routes"),
-    # Frontend layout & pages
-    (["index", "layout", "template", "page", "screen", "component", "widget"], "🖼️ Layout / View"),
-    # Styling
-    (["style", "styles", "theme", "global", "tailwind", "colors", "css"], "🎨 Styling"),
     # Middleware & plugins
     (["middleware", "plugin", "hook", "signal", "event", "interceptor"], "🔌 Middleware"),
     # Adapters & connectors
     (["adapter", "connector", "client", "transport", "protocol"], "🔌 Adapter / Client"),
+    # Frontend layout & pages
+    (["index", "layout", "template", "page", "screen", "component", "widget"], "🖼️ Layout / View"),
+    # Styling
+    (["style", "styles", "theme", "global", "tailwind", "colors", "css"], "🎨 Styling"),
     # Database
     # Utilities (generic — intentionally placed late to avoid false positives)
     (["util", "utils", "helper", "helpers", "common", "shared", "misc", "tools"], "🔧 Utility"),
