@@ -9,8 +9,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
     
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="//unpkg.com/three"></script>
-    <script src="//unpkg.com/three-spritetext"></script>
     <script src="//unpkg.com/3d-force-graph"></script>
 
     <script id="tailwind-config">
@@ -383,16 +381,20 @@
             const Graph = ForceGraph3D()(elem)
                 .graphData(getVisibleGraph())
                 
-                // Use SpriteText instead of blank glowing spheres
-                .nodeThreeObject(node => {
-                    const sprite = new SpriteText(node.name);
-                    sprite.material.depthWrite = false; // Stay slightly above physics rendering bounds
-                    sprite.color = node.type === 'folder' ? '#FFD700' : (heatColors[node.heat] || '#fff');
-                    sprite.textHeight = node.type === 'folder' ? 6 : Math.max(3, (node.val / 3)); // files scale by complexity!
-                    sprite.strokeWidth = 0.6;
-                    sprite.strokeColor = "rgba(0,0,0,0.9)"; // Dark crisp border for legibility
-                    return sprite;
+                // Fallback to high-performance Glowing Spheres
+                .nodeRelSize(5) 
+                .nodeVal(node => Math.max(3, (node.val / 3))) 
+                .nodeLabel(node => {
+                    const icon = node.type === 'folder' ? '📁' : '📄';
+                    const hint = node.type === 'folder' ? '<br><span style="color:#aaa;font-size:10px;">(Click to Expand/Collapse)</span>' : '';
+                    return `<div style="text-align: center; font-weight: bold; background: rgba(0,0,0,0.8); padding: 8px; border-radius: 6px; border: 1px solid #333;">
+                                <div style="font-size: 16px; color: ${heatColors[node.heat] || '#fff'}">${icon} ${node.name}</div>
+                                <div style="font-size: 11px; color: #888; margin-top: 4px;">${node.id}</div>
+                                ${node.type === 'file' ? `<div style="font-size: 12px; margin-top: 5px;">Complexity: <span style="color: ${heatColors[node.heat]};">${node.heat}</span></div>` : ''}
+                                ${hint}
+                            </div>`;
                 })
+                .nodeColor(node => node.type === 'folder' ? '#FFD700' : (heatColors[node.heat] || heatColors["Medium"]))
                 .nodeResolution(24) // Optimal res for fallback boundaries
                 
                 // Link visuals (Structural vs Dependency)
