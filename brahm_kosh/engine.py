@@ -17,6 +17,7 @@ from brahm_kosh.adapters.registry import detect_languages, get_adapter, list_ada
 from brahm_kosh.analysis.complexity import score_project
 from brahm_kosh.analysis.hotspots import Hotspot, find_hotspots
 from brahm_kosh.analysis.purpose import infer_purposes
+from brahm_kosh.analysis.dependencies import compute_lexical_dependencies
 from brahm_kosh.models import FileModel, Metadata, Module, Project
 
 # ---------------------------------------------------------------------------
@@ -132,6 +133,9 @@ def analyze(
     merged.compute_metadata()
     if languages_found:
         merged.metadata.languages = languages_found
+
+    # Resolve cross-file dependencies
+    compute_lexical_dependencies(merged)
 
     # Rank hotspots across the merged project
     hotspots = find_hotspots(merged, top_n=top_n)

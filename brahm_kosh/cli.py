@@ -126,6 +126,24 @@ def analyze_cmd(path: str, json_out: bool, top_n: int, lang: str | None):
         _run_visual(path, top_n, lang)
 
 
+@main.command(name="serve")
+@click.argument("path", default=".", type=click.Path(exists=True))
+@click.option("--port", default=8080, help="Port to run the 3D server on.")
+@click.option("--lang", default=None, help="Analyze only a specific language.")
+def serve_cmd(path: str, port: int, lang: str | None):
+    """Serve the 3D interactive codebase graph locally.
+    
+    This analyzes the codebase and spins up a local web server (default port: 8080)
+    hosting the interactive 3D frontend interface, bridged directly to Brahm-Kosh.
+    """
+    from brahm_kosh.server import serve_project
+    
+    with console.status("[bold cyan]Analyzing codebase for 3D generation...[/bold cyan]", spinner="dots"):
+        project, _ = analyze(path, top_n=100, lang=lang)
+        
+    serve_project(project, port)
+
+
 def _run_visual(path: str, top_n: int, lang: str | None = None):
     """Run the visual (Rich) output mode."""
     console.print()

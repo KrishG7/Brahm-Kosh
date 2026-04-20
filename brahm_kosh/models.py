@@ -96,6 +96,8 @@ class FileModel:
     complexity: float = 0.0
     purpose: Optional[str] = None
     language: str = "Unknown"
+    dependencies: list[str] = field(default_factory=list)
+    dependents: list[str] = field(default_factory=list)
 
     @property
     def heat_label(self) -> str:
@@ -130,6 +132,10 @@ class FileModel:
             d["language"] = self.language
         if self.symbols:
             d["symbols"] = [s.to_dict() for s in self.symbols]
+        if self.dependencies:
+            d["dependencies"] = self.dependencies
+        if self.dependents:
+            d["dependents"] = self.dependents
         return d
 
 

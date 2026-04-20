@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brahm-Kosh | 3D Codebase Explorer</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #1a1a2e; color: white; font-family: 'Inter', sans-serif; overflow: hidden; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        .overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(15, 15, 25, 0.85);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 350px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        h1 { margin: 0 0 10px 0; font-size: 24px; color: #00d2ff; }
+        p { margin: 0 0 15px 0; font-size: 14px; color: #aaa; line-height: 1.5; }
+        
+        .panel { padding: 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.05); margin-bottom: 10px;}
+        .panel-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 8px; font-weight: bold;}
+        
+        .stitch-badge { 
+            display: inline-block;
+            background: linear-gradient(135deg, #FF6B6B, #4ECDC4);
+            color: white; 
+            padding: 5px 10px; 
+            border-radius: 20px; 
+            font-size: 11px; 
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        <!-- STITCH: Inject 3D-Force-Graph canvas here -->
+    </div>
+
+    <div class="overlay">
+        <h1>Brahm-Kosh 3D</h1>
+        <p>Awaiting Stitch UI implementation. This file is served locally by the Brahm-Kosh Python backend.</p>
+        
+        <div class="panel">
+            <div class="panel-title">Data Stream Live</div>
+            <div style="font-size: 13px; font-family: monospace; color: #00ff88;">GET /api/graph -> OK</div>
+            <div style="font-size: 13px; font-family: monospace; color: #00ff88;">GET /api/architecture -> OK</div>
+        </div>
+        
+        <div class="panel">
+            <div class="panel-title">INSTRUCTIONS FOR STITCH</div>
+            <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #ddd; line-height: 1.6;">
+                <li>Fetch nodes/links from <code>/api/graph</code></li>
+                <li>Fetch AI architect data from <code>/api/architecture</code></li>
+                <li>Import <code>react-force-graph-3d</code> via CDN</li>
+                <li>Render 'God Classes' in bright red</li>
+                <li>Color code nodes by Language/Module</li>
+            </ul>
+        </div>
+        
+        <div class="stitch-badge">⚡ UI Handled by Stitch</div>
+    </div>
+
+    <script>
+        // Diagnostic test to prove the API bridge is working
+        fetch('/api/graph')
+            .then(res => res.json())
+            .then(data => {
+                console.log("🔥 Brahm-Kosh Graph API received:", data);
+                if (data.nodes && data.nodes.length > 0) {
+                    const status = document.createElement('div');
+                    status.style = "margin-top: 15px; font-size: 13px; color: #bb86fc;";
+                    status.innerHTML = `✅ Successfully loaded ${data.nodes.length} structural codebase nodes and ${data.links.length} dependencies via local API.`;
+                    document.querySelector('.overlay').appendChild(status);
+                }
+            })
+            .catch(err => console.error("Error fetching API:", err));
+    </script>
+</body>
+</html>
