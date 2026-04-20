@@ -277,6 +277,6 @@ def analyze_directory(root_path: str) -> Project:
 
     return project
 
-# Self-register the adapter upon import
+# Self-register the adapter upon import with supported extensions
 from brahm_kosh.adapters.registry import register_adapter
-register_adapter("python", analyze_directory)
+register_adapter("python", analyze_directory, extensions=["py"])

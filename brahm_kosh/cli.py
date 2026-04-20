@@ -18,6 +18,7 @@ from rich.text import Text
 from rich.tree import Tree
 
 from brahm_kosh import __version__
+from brahm_kosh.adapters.registry import list_adapters
 from brahm_kosh.engine import analyze
 from brahm_kosh.models import FileModel, Module
 
@@ -112,32 +113,38 @@ def main():
 @click.argument("path", default=".", type=click.Path(exists=True))
 @click.option("--json-output", "--json", "json_out", is_flag=True, help="Output as JSON instead of visual tree.")
 @click.option("--top", "top_n", default=10, help="Number of hotspots to show.", show_default=True)
-def analyze_cmd(path: str, json_out: bool, top_n: int):
+@click.option("--lang", "lang", default=None, help="Analyze only a specific language (e.g. python, javascript, c).")
+def analyze_cmd(path: str, json_out: bool, top_n: int, lang: str | None):
     """Analyze a codebase and reveal its structure.
 
     PATH is the root directory to analyze (default: current directory).
+    Use --lang to target a specific language adapter.
     """
     if json_out:
-        _run_json(path, top_n)
+        _run_json(path, top_n, lang)
     else:
-        _run_visual(path, top_n)
+        _run_visual(path, top_n, lang)
 
 
-def _run_visual(path: str, top_n: int):
+def _run_visual(path: str, top_n: int, lang: str | None = None):
     """Run the visual (Rich) output mode."""
     console.print()
     console.print(Panel(
         Text(BANNER, style="bold bright_cyan", justify="center"),
-        subtitle="[dim]Codebase Intelligence Engine[/dim]",
+        subtitle="[dim]Codebase Intelligence Engine v1.0[/dim]",
         border_style="bright_cyan",
         padding=(0, 2),
     ))
     console.print()
 
     # Analyze with a spinner
-    with console.status("[bold cyan]Analyzing codebase...[/bold cyan]", spinner="dots"):
+    spinner_msg = (
+        f"[bold cyan]Analyzing {lang} files...[/bold cyan]"
+        if lang else "[bold cyan]Analyzing codebase...[/bold cyan]"
+    )
+    with console.status(spinner_msg, spinner="dots"):
         start = time.time()
-        project, hotspots = analyze(path, top_n=top_n)
+        project, hotspots = analyze(path, top_n=top_n, lang=lang)
         elapsed = time.time() - start
 
     meta = project.metadata
@@ -249,14 +256,41 @@ def _run_visual(path: str, top_n: int):
     console.print()
 
 
-def _run_json(path: str, top_n: int):
+def _run_json(path: str, top_n: int, lang: str | None = None):
     """Run the JSON output mode."""
-    project, hotspots = analyze(path, top_n=top_n)
+    project, hotspots = analyze(path, top_n=top_n, lang=lang)
 
     output = project.to_dict()
     output["hotspots"] = [hs.to_dict() for hs in hotspots]
 
     click.echo(json.dumps(output, indent=2, ensure_ascii=False))
+
+
+@main.command(name="list-adapters")
+def list_adapters_cmd():
+    """List all registered language adapters and their supported file extensions."""
+    adapters = list_adapters()
+    if not adapters:
+        console.print("[yellow]No adapters registered.[/yellow]")
+        return
+
+    table = Table(
+        title="[bold bright_cyan]🔌 Registered Language Adapters[/bold bright_cyan]",
+        border_style="bright_cyan",
+        title_style="bold bright_cyan",
+        padding=(0, 1),
+    )
+    table.add_column("Language", style="bold white", min_width=15)
+    table.add_column("Extensions", style="cyan", min_width=20)
+    table.add_column("--lang flag", style="dim", min_width=12)
+
+    for name, exts in sorted(adapters.items()):
+        ext_str = "  ".join(sorted(exts)) if exts else "(auto)"
+        table.add_row(name.capitalize(), ext_str, name)
+
+    console.print()
+    console.print(table)
+    console.print()
 
 
 if __name__ == "__main__":
