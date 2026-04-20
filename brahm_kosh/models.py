@@ -20,6 +20,8 @@ class SymbolKind(str, Enum):
     CLASS = "class"
     METHOD = "method"
     MODULE = "module"
+    HTML_NODE = "html_node"
+    CSS_RULE = "css_rule"
 
 
 @dataclass

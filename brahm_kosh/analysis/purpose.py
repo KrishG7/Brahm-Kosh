@@ -32,6 +32,10 @@ FILE_NAME_PATTERNS: list[tuple[list[str], str]] = [
     (["config", "settings", "conf", "env", "constants", "defaults"], "⚙️ Configuration"),
     # APIs & routing
     (["api", "route", "router", "endpoint", "view", "handler", "urls"], "🌐 API / Routes"),
+    # Frontend layout & pages
+    (["index", "layout", "template", "page", "screen", "component"], "🖼️ Layout / View"),
+    # Styling
+    (["style", "styles", "theme", "global", "tailwind", "colors"], "🎨 Styling"),
     # Middleware & plugins
     (["middleware", "plugin", "hook", "signal", "event"], "🔌 Middleware"),
     # Adapters & connectors
@@ -70,6 +74,8 @@ KEYWORD_PATTERNS: list[tuple[list[str], str]] = [
     (["register", "factory", "create", "build", "inject"], "🏭 Registry / Factory"),
     (["route", "dispatch", "handle", "middleware"], "🌐 API / Routes"),
     (["config", "setting", "option", "parameter", "preference"], "⚙️ Configuration"),
+    (["css", "style", "color", "font", "margin", "padding", "flex", "grid"], "🎨 Styling"),
+    (["html", "div", "span", "component", "render", "jsx", "tsx"], "🖼️ Layout / View"),
 ]
 
 
@@ -149,6 +155,10 @@ def infer_file_purpose(file_model: FileModel) -> str:
     dominant = _dominant_symbol_kind(file_model)
     if dominant == SymbolKind.CLASS:
         return "📦 Data Model"
+    if dominant == SymbolKind.CSS_RULE:
+        return "🎨 Styling"
+    if dominant == SymbolKind.HTML_NODE:
+        return "🖼️ Layout / View"
     if dominant == SymbolKind.FUNCTION:
         # Many functions, no other hints → likely utility or analysis
         if file_model.symbol_count > 8:

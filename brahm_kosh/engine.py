@@ -28,6 +28,8 @@ _BUILTIN_ADAPTERS = [
     "brahm_kosh.adapters.python_adapter",
     "brahm_kosh.adapters.javascript_adapter",
     "brahm_kosh.adapters.c_adapter",
+    "brahm_kosh.adapters.html_adapter",
+    "brahm_kosh.adapters.css_adapter",
 ]
 
 

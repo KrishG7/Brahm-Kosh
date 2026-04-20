@@ -1,0 +1,101 @@
+/* Global resets */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f9f9f9;
+}
+
+/* Header styles */
+#main-header {
+    background: #fff;
+    padding: 1rem 2rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#main-header nav ul {
+    list-style: none;
+    display: flex;
+    gap: 1.5rem;
+}
+
+#main-header nav ul li a {
+    text-decoration: none;
+    color: #007bff;
+    font-weight: 500;
+}
+
+#main-header nav ul li a:hover {
+    text-decoration: underline;
+}
+
+/* Extremely complex CSS Rule */
+main section#hero-section.banner > div > div > div > div#deep-node p {
+    font-size: 1.5rem;
+    color: #ff4500;
+    font-weight: 800;
+    text-align: center;
+    border: 2px solid #ff4500;
+    padding: 2rem;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #fff, #ffe4b5);
+    box-shadow: 0 4px 12px rgba(255, 69, 0, 0.2);
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+main section#hero-section.banner > div > div > div > div#deep-node p:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 24px rgba(255, 69, 0, 0.3);
+}
+
+/* Forms */
+#contact-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-width: 400px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+#contact-form input {
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+#contact-form button[type="submit"] {
+    padding: 0.75rem;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+#contact-form button[type="submit"]:hover {
+    background: #218838;
+}
+
+/* Media Query */
+@media (max-width: 768px) {
+    #main-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+}
