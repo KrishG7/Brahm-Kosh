@@ -3,8 +3,14 @@
 ## Current Position
 
 **Milestone:** v1.0 — Multi-Language Intelligence Engine
-**Current Phase:** Phase 1 — Engine Refactor & Python Fine-Tuning
-**Status:** Not started
+**Current Phase:** None
+**Status:** ✅ Complete
+
+### Recent Changes
+* **Phase 1:** Refactored engine to support auto-discovery of languages. Added `--lang` flag and `list-adapters` command. Enhanced Python purpose inference heuristics (5-layer system).
+* **Phase 2:** Implemented pure-Python, regex-based JavaScript/TypeScript adapter. Extracts async/arrow/class methods and calculates complexity.
+* **Phase 3:** Implemented pure-Python, regex-based C/C++ adapter. Extracts C functions, C++ structs/classes/methods and calculates complexity.
+* **Phase 4:** Integrated multi-language metadata into CLI. Added `Language` column to the hotspots table and a language breakdown in the stats panel. Updated `README.md`. Bumped version to 1.0.0.
 
 ---
 
