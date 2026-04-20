@@ -46,13 +46,21 @@ def compute_lexical_dependencies(project: Project):
                 if name not in global_symbols:
                     global_symbols[name] = set()
                 global_symbols[name].add(fm.relative_path)
+                
+        # Also map the explicit filename itself!
+        # E.g., 'app.js' becomes a global symbol, meaning if index.html
+        # references 'app.js', an edge is drawn.
+        if len(fm.name) > 4:
+            if fm.name not in global_symbols:
+                global_symbols[fm.name] = set()
+            global_symbols[fm.name].add(fm.relative_path)
 
     if not global_symbols:
         return
 
     # 2. Extract words from each file and intersect
-    # We use a simple word-boundary tokenizer
-    word_pattern = re.compile(r"[a-zA-Z_]\w*")
+    # We use a tokenizer that also captures file extensions (e.g. app.js)
+    word_pattern = re.compile(r"[a-zA-Z_][\w.]*")
     
     # Pre-compute valid symbol names for fast intersection lookup
     valid_names = set(global_symbols.keys())

@@ -15,7 +15,7 @@ def analyze_structure(project: Project) -> Dict[str, Any]:
     """
     files: List[FileModel] = project.all_files()
     
-    god_files = []
+    monolithic_files = []
     dead_files = []
     circular_deps = []
     
@@ -26,10 +26,10 @@ def analyze_structure(project: Project) -> Dict[str, Any]:
         # Detect God Classes/Files (Too many incoming links)
         # Using a low threshold for the sandbox, realistically > 10
         if len(fm.dependents) >= 3:
-            god_files.append({
+            monolithic_files.append({
                 "file": fm.relative_path,
                 "dependents": len(fm.dependents),
-                "suggestion": f"This file is highly coupled. Consider breaking {fm.name} into smaller interfaces."
+                "suggestion": f"This monolithic file is highly coupled. Consider breaking {fm.name} into smaller interfaces."
             })
             
         # Detect Dead Code (No incoming and no outgoing, outside of entry points)
@@ -49,8 +49,8 @@ def analyze_structure(project: Project) -> Dict[str, Any]:
                     circular_deps.append(pair)
 
     return {
-        "summary": f"Analyzed {len(files)} files and found {len(god_files)} highly coupled nodes and {len(circular_deps)} circular dependencies.",
-        "god_files": god_files,
+        "summary": f"Analyzed {len(files)} files and found {len(monolithic_files)} highly coupled nodes and {len(circular_deps)} circular dependencies.",
+        "monolithic_files": monolithic_files,
         "circular_dependencies": [
             {
                 "files": list(pair),
