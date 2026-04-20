@@ -35,28 +35,76 @@ class ProjectGraphServer:
         """
         nodes = []
         links = []
+        folders_tracked = set()
         
         files = project.all_files()
         
         for fm in files:
+            # Add file node
             nodes.append({
                 "id": fm.relative_path,
                 "name": fm.name,
-                "group": os.path.dirname(fm.relative_path) or "root",
-                "val": fm.complexity + 1,  # +1 ensures node always has some size
+                "type": "file",
+                "parent": os.path.dirname(fm.relative_path) or "root",
+                "val": fm.complexity + 1,
                 "heat": fm.heat_label,
                 "purpose": fm.purpose,
                 "language": fm.language,
                 "symbols": [s.name for s in fm.symbols]
             })
             
-            # Forward dependencies become links (edges)
+            # Forward dependencies become links (edges) of type 'dependency'
             for dep in fm.dependencies:
                 links.append({
                     "source": fm.relative_path,
-                    "target": dep
+                    "target": dep,
+                    "type": "dependency"
                 })
                 
+            # Track and inject folders
+            parts = fm.relative_path.split('/')
+            current_path = ""
+            for i in range(len(parts) - 1): # Exclude the file name itself
+                folder_name = parts[i]
+                parent_path = current_path
+                current_path = f"{current_path}/{folder_name}" if current_path else folder_name
+                
+                if current_path not in folders_tracked:
+                    folders_tracked.add(current_path)
+                    nodes.append({
+                        "id": current_path,
+                        "name": folder_name,
+                        "type": "folder",
+                        "parent": parent_path or "root",
+                        "val": 15, # Fixed large size for folders
+                        "heat": "Low"
+                    })
+                    
+                # Add structural edge from parent to current
+                links.append({
+                    "source": parent_path or "root",
+                    "target": current_path,
+                    "type": "structural"
+                })
+                
+            # Add structural edge from containing folder to the file
+            parent_dir = os.path.dirname(fm.relative_path)
+            links.append({
+                "source": parent_dir or "root",
+                "target": fm.relative_path,
+                "type": "structural"
+            })
+            
+        # Add a special Root node if it doesn't exist
+        nodes.append({
+            "id": "root",
+            "name": project.name or "Repository",
+            "type": "folder",
+            "parent": None,
+            "val": 20,
+            "heat": "Optimal"
+        })
+
         return {"nodes": nodes, "links": links}
 
     def start(self):

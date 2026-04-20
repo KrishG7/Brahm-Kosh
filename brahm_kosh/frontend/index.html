@@ -225,22 +225,43 @@
         "Critical": "#FF0055", // Neon Red/Pink
         "High": "#FF8C00",     // Bright Orange
         "Medium": "#00F2FF",   // Cyberpunk Cyan
-        "Low": "#00FF66"       // Matrix Green
+        "Low": "#00FF66",      // Matrix Green
+        "Optimal": "#00F2FF"
     };
     
     let GlobalGraphData = null;
+    let ExpandedFolders = new Set(['root']); // Start with root expanded
+
+    // Rebuilds the visible graph based on what folders are expanded
+    function getVisibleGraph() {
+        if (!GlobalGraphData) return { nodes: [], links: [] };
+
+        const visibleNodes = GlobalGraphData.nodes.filter(n => 
+            n.id === 'root' || ExpandedFolders.has(n.parent)
+        );
+        
+        const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+        
+        // Only show links where BOTH source and target are visible
+        const visibleLinks = GlobalGraphData.links.filter(l => 
+            visibleNodeIds.has(l.source.id || l.source) && 
+            visibleNodeIds.has(l.target.id || l.target)
+        );
+
+        return { nodes: visibleNodes, links: visibleLinks };
+    }
 
     // Load graph data
     fetch('/api/graph')
         .then(res => res.json())
         .then(data => {
             GlobalGraphData = data;
-            document.getElementById('stat-nodes').innerText = `Nodes: ${data.nodes.length}`;
-            document.getElementById('stat-edges').innerText = `Edges: ${data.links.length}`;
+            document.getElementById('stat-nodes').innerText = `Total Nodes: ${data.nodes.length}`;
+            document.getElementById('stat-edges').innerText = `Total Edges: ${data.links.length}`;
 
             // Initialize Grid/List View
             const tbody = document.getElementById('list-table-body');
-            data.nodes.sort((a,b) => b.val - a.val).forEach(node => {
+            data.nodes.filter(n => n.type === 'file').sort((a,b) => b.val - a.val).forEach(node => {
                 const tr = document.createElement('tr');
                 tr.className = "border-b border-outline-variant/10 hover:bg-surface-container transition-colors";
                 tr.innerHTML = `
@@ -249,12 +270,12 @@
                             <span class="material-symbols-outlined text-[16px] text-[#00f2ff]">description</span>
                             ${node.id}
                         </div>
-                        <div class="text-[10px] text-zinc-500 mt-1 ml-6">${node.symbols.length} exposed materials</div>
+                        <div class="text-[10px] text-zinc-500 mt-1 ml-6">${node.symbols ? node.symbols.length : 0} exposed materials</div>
                     </td>
                     <td class="p-4"><span class="bg-surface-container px-2 py-1 rounded text-xs text-outline border border-outline-variant/30">${node.language}</span></td>
                     <td class="p-4 text-right">
                         <span class="font-bold text-lg" style="color: ${heatColors[node.heat]}; text-shadow: 0 0 10px ${heatColors[node.heat]}66;">
-                            ${node.val - 1} <!-- Subtracting the +1 padding we add in python -->
+                            ${node.val - 1}
                         </span>
                     </td>
                     <td class="p-4 text-zinc-400 italic">${node.purpose || '-'}</td>
@@ -265,60 +286,78 @@
             // Initialize 3D Graph
             const elem = document.getElementById('3d-graph');
             const Graph = ForceGraph3D()(elem)
-                .graphData(data)
+                .graphData(getVisibleGraph())
                 .nodeRelSize(5) // Larger default bases
                 .nodeVal(node => Math.max(3, (node.val / 3))) // Distinct scaling
                 .nodeLabel(node => {
-                    return `<div style="text-align: center; font-weight: bold;">
-                                <div style="font-size: 16px; color: ${heatColors[node.heat]}">${node.name}</div>
-                                <div style="font-size: 11px; color: #aaa; margin-top: 4px;">Path: ${node.group}</div>
-                                <div style="font-size: 12px; margin-top: 5px;">Complexity: <span style="color: ${heatColors[node.heat]};">${node.heat}</span></div>
+                    const icon = node.type === 'folder' ? '📁' : '📄';
+                    const hint = node.type === 'folder' ? '<br><span style="color:#aaa;font-size:10px;">(Click to Expand/Collapse)</span>' : '';
+                    return `<div style="text-align: center; font-weight: bold; background: rgba(0,0,0,0.8); padding: 8px; border-radius: 6px; border: 1px solid #333;">
+                                <div style="font-size: 16px; color: ${heatColors[node.heat] || '#fff'}">${icon} ${node.name}</div>
+                                <div style="font-size: 11px; color: #888; margin-top: 4px;">${node.id}</div>
+                                ${node.type === 'file' ? `<div style="font-size: 12px; margin-top: 5px;">Complexity: <span style="color: ${heatColors[node.heat]};">${node.heat}</span></div>` : ''}
+                                ${hint}
                             </div>`;
                 })
-                .nodeColor(node => heatColors[node.heat] || heatColors["Medium"])
-                .nodeResolution(32) // Higher res spheres
-                .nodeOpacity(0.9)
+                // Folders are gold/white, files are heat-colored
+                .nodeColor(node => node.type === 'folder' ? '#FFD700' : (heatColors[node.heat] || heatColors["Medium"]))
+                .nodeResolution(24) // Optimal res
+                .nodeOpacity(1.0)
                 
-                // Extremely highly visible glowing edges
-                .linkWidth(2.0)
-                .linkColor(link => 'rgba(255, 255, 255, 0.4)')
-                .linkDirectionalParticles(link => 3)
+                // Link visuals (Structural vs Dependency)
+                .linkWidth(link => link.type === 'structural' ? 0.5 : 2.0)
+                .linkColor(link => link.type === 'structural' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 242, 255, 0.4)')
+                .linkDirectionalParticles(link => link.type === 'dependency' ? 3 : 0)
                 .linkDirectionalParticleWidth(3.0)
                 .linkDirectionalParticleColor(() => '#00F2FF')
                 .linkDirectionalParticleSpeed(d => 0.008)
                 
                 .backgroundColor('rgba(0,0,0,0)') // Transparent to show tailwind grid
                 .onNodeClick(node => {
-                    // Update Inspector
-                    const panel = document.getElementById('inspector-panel');
-                    panel.classList.remove('hidden');
                     
-                    document.getElementById('inspect-title').innerText = node.name;
-                    document.getElementById('inspect-path').innerText = `${node.id} — ${node.language} (${node.symbols.length} objects)`;
-                    
-                    const heatEl = document.getElementById('inspect-heat');
-                    heatEl.innerText = node.heat;
-                    heatEl.style.color = heatColors[node.heat] || "white";
-                    
-                    document.getElementById('inspect-purpose').innerText = node.purpose || "Generic Utility";
-
-                    const symContainer = document.getElementById('inspect-symbols');
-                    symContainer.innerHTML = ''; // wipe
-                    
-                    if(node.symbols && node.symbols.length > 0) {
-                        node.symbols.forEach(sym => {
-                            const d = document.createElement('div');
-                            d.className = "flex items-center justify-between p-2 hover:bg-surface-container rounded cursor-pointer transition-colors group";
-                            d.innerHTML = `
-                                <div class="flex items-center gap-2 overflow-hidden">
-                                    <span class="material-symbols-outlined text-[14px]" style="color: ${heatColors[node.heat]}">code_blocks</span>
-                                    <span class="font-mono text-xs text-white truncate">${sym}</span>
-                                </div>
-                            `;
-                            symContainer.appendChild(d);
-                        });
+                    if (node.type === 'folder') {
+                        // Toggle folder expansion!
+                        if (ExpandedFolders.has(node.id)) {
+                            // Collapse: Removing it from set hides its children
+                            ExpandedFolders.delete(node.id);
+                        } else {
+                            // Expand
+                            ExpandedFolders.add(node.id);
+                        }
+                        // Re-render
+                        Graph.graphData(getVisibleGraph());
                     } else {
-                        symContainer.innerHTML = '<div class="text-xs text-outline italic p-3 bg-black/20 rounded">No internal materials exported.</div>';
+                        // File clicked: Update Inspector
+                        const panel = document.getElementById('inspector-panel');
+                        panel.classList.remove('hidden');
+                        
+                        document.getElementById('inspect-title').innerText = node.name;
+                        document.getElementById('inspect-path').innerText = `${node.id} — ${node.language} (${node.symbols.length} objects)`;
+                        
+                        const heatEl = document.getElementById('inspect-heat');
+                        heatEl.innerText = node.heat;
+                        heatEl.style.color = heatColors[node.heat] || "white";
+                        
+                        document.getElementById('inspect-purpose').innerText = node.purpose || "Generic Utility";
+
+                        const symContainer = document.getElementById('inspect-symbols');
+                        symContainer.innerHTML = ''; // wipe
+                        
+                        if(node.symbols && node.symbols.length > 0) {
+                            node.symbols.forEach(sym => {
+                                const d = document.createElement('div');
+                                d.className = "flex items-center justify-between p-2 hover:bg-surface-container rounded cursor-pointer transition-colors group";
+                                d.innerHTML = `
+                                    <div class="flex items-center gap-2 overflow-hidden">
+                                        <span class="material-symbols-outlined text-[14px]" style="color: ${heatColors[node.heat]}">code_blocks</span>
+                                        <span class="font-mono text-xs text-white truncate">${sym}</span>
+                                    </div>
+                                `;
+                                symContainer.appendChild(d);
+                            });
+                        } else {
+                            symContainer.innerHTML = '<div class="text-xs text-outline italic p-3 bg-black/20 rounded">No internal materials exported.</div>';
+                        }
                     }
 
                     // Fly camera to node smoothly
@@ -327,19 +366,13 @@
                     Graph.cameraPosition(
                         { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
                         node,
-                        2000
+                        1500
                     );
                 });
                 
-            // Subtle rotation animation
-            let angle = 0;
-            setInterval(() => {
-                Graph.cameraPosition({
-                    x: 300 * Math.sin(angle),
-                    z: 300 * Math.cos(angle)
-                });
-                angle += Math.PI / 800; // Slow rotation
-            }, 50);
+            // Fix Interactivity Lag: Use Native Engine Rotation instead of setInterval!
+            Graph.controls().autoRotate = true;
+            Graph.controls().autoRotateSpeed = 0.5;
         });
 
     // Load architectural AI data
