@@ -21,39 +21,25 @@ from brahm_kosh.models import FileModel, Project, SymbolKind
 
 # File name → purpose patterns (first match wins)
 FILE_NAME_PATTERNS: list[tuple[list[str], str]] = [
-    # Testing
-    (["test_", "_test", "tests/", "conftest", "spec_", "_spec", ".spec"], "🧪 Testing"),
+    (["test", "spec", "mock", "stub", "fixture"], "🧪 Test / Fixture"),
     # Entry points
     (["__main__", "cli", "command", "console"], "🚀 Entry Point"),
     (["main", "app", "run", "server", "wsgi", "asgi", "index"], "🚀 Entry Point"),
     # Data models & schemas
     (["model", "schema", "entity", "orm", "dto", "dataclass"], "📦 Data Model"),
     # Config & settings
-    (["config", "settings", "conf", "env", "constants", "defaults"], "⚙️ Configuration"),
+    (["config", "settings", "conf", "env", "constants", "defaults", "pom", "gradle", "properties", "csproj"], "⚙️ Configuration"),
     # APIs & routing
     (["api", "route", "router", "endpoint", "view", "handler", "urls"], "🌐 API / Routes"),
     # Frontend layout & pages
-    (["index", "layout", "template", "page", "screen", "component"], "🖼️ Layout / View"),
+    (["index", "layout", "template", "page", "screen", "component", "widget"], "🖼️ Layout / View"),
     # Styling
-    (["style", "styles", "theme", "global", "tailwind", "colors"], "🎨 Styling"),
+    (["style", "styles", "theme", "global", "tailwind", "colors", "css"], "🎨 Styling"),
     # Middleware & plugins
-    (["middleware", "plugin", "hook", "signal", "event"], "🔌 Middleware"),
+    (["middleware", "plugin", "hook", "signal", "event", "interceptor"], "🔌 Middleware"),
     # Adapters & connectors
-    (["adapter", "connector", "client", "driver", "gateway", "bridge"], "🔗 Adapter"),
-    # Services & controllers
-    (["service", "manager", "controller", "repository", "store"], "🎛️ Service / Logic"),
-    # Error handling
-    (["error", "exception", "fault", "trap"], "⚠️ Error Handling"),
-    # Logging
-    (["log", "logging", "logger", "audit"], "📋 Logging"),
-    # Security
-    (["auth", "permission", "security", "token", "jwt", "oauth"], "🔐 Security"),
+    (["adapter", "connector", "client", "transport", "protocol"], "🔌 Adapter / Client"),
     # Database
-    (["db", "database", "migration", "seed", "fixture", "sql"], "🗄️ Database"),
-    # Caching
-    (["cache", "memo", "redis", "memcache"], "💾 Caching"),
-    # Build & setup
-    (["setup", "install", "build", "deploy", "docker", "makefile"], "📦 Build / Setup"),
     # Utilities (generic — intentionally placed late to avoid false positives)
     (["util", "utils", "helper", "helpers", "common", "shared", "misc", "tools"], "🔧 Utility"),
     # Package init — most generic
@@ -71,11 +57,13 @@ KEYWORD_PATTERNS: list[tuple[list[str], str]] = [
     (["read", "write", "load", "save", "serialize", "deserialize", "dump", "open"], "💾 I/O"),
     (["validate", "check", "verify", "assert", "constraint"], "✅ Validation"),
     (["transform", "convert", "map", "reduce", "filter", "pipeline"], "🔄 Transformation"),
-    (["register", "factory", "create", "build", "inject"], "🏭 Registry / Factory"),
-    (["route", "dispatch", "handle", "middleware"], "🌐 API / Routes"),
+    (["register", "factory", "create", "build", "inject", "provider"], "🏭 Registry / Factory"),
+    (["route", "dispatch", "handle", "middleware", "controller"], "🌐 API / Routes"),
     (["config", "setting", "option", "parameter", "preference"], "⚙️ Configuration"),
     (["css", "style", "color", "font", "margin", "padding", "flex", "grid"], "🎨 Styling"),
-    (["html", "div", "span", "component", "render", "jsx", "tsx"], "🖼️ Layout / View"),
+    (["html", "div", "span", "component", "render", "jsx", "tsx", "widget", "build"], "🖼️ Layout / View"),
+    (["sql", "query", "select", "insert", "update", "delete", "table", "schema", "db"], "🗄️ Database / Storage"),
+    (["dataframe", "plot", "model", "train", "fit", "predict", "ggplot", "dplyr"], "📈 Data Analysis"),
 ]
 
 

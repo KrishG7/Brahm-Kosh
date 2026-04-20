@@ -30,6 +30,14 @@ _BUILTIN_ADAPTERS = [
     "brahm_kosh.adapters.c_adapter",
     "brahm_kosh.adapters.html_adapter",
     "brahm_kosh.adapters.css_adapter",
+    "brahm_kosh.adapters.java_adapter",
+    "brahm_kosh.adapters.csharp_adapter",
+    "brahm_kosh.adapters.go_adapter",
+    "brahm_kosh.adapters.rust_adapter",
+    "brahm_kosh.adapters.dart_adapter",
+    "brahm_kosh.adapters.php_adapter",
+    "brahm_kosh.adapters.r_adapter",
+    "brahm_kosh.adapters.sql_adapter",
 ]
 
 
