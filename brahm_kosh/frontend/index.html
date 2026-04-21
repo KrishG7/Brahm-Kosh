@@ -154,6 +154,16 @@
                         </div>
                     </div>
 
+                    <div class="mb-5 bg-surface-container-high/40 p-4 rounded-lg border border-outline-variant/30 relative overflow-hidden group">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#00f2ff] to-[#ff0055]"></div>
+                        <h4 class="text-xs font-body text-outline uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[14px] text-[#00f2ff]">auto_awesome</span> AI Narration
+                        </h4>
+                        <div id="inspect-narration" class="text-sm text-white/90 leading-relaxed font-body">
+                            <!-- Narration injected here -->
+                        </div>
+                    </div>
+
                     <div>
                         <h4 class="text-xs font-body text-outline uppercase tracking-widest mb-2 border-b border-outline-variant/30 pb-1">Exposed Materials</h4>
                         <div id="inspect-symbols" class="space-y-1.5 max-h-[40vh] overflow-y-auto pr-2">
@@ -228,6 +238,8 @@
     
     let GlobalGraphData = null;
     let ExpandedFolders = new Set(['root']); // Start with root expanded
+    window.SelectedNodeId = null;
+    window.BlastRadiusNodes = new Set();
 
     // Rebuilds the visible graph based on what folders are expanded
     function getVisibleGraph() {
@@ -394,15 +406,52 @@
                                 ${hint}
                             </div>`;
                 })
-                .nodeColor(node => node.type === 'folder' ? '#FFD700' : (heatColors[node.heat] || heatColors["Medium"]))
+                .nodeColor(node => {
+                    if (window.SelectedNodeId && node.type === 'file') {
+                        if (node.id === window.SelectedNodeId) return '#FF0055'; // Selected Node is Neon Red
+                        if (window.BlastRadiusNodes.has(node.id)) return '#FF8C00'; // Neighbors glow orange
+                        return 'rgba(50, 50, 50, 0.1)'; // Dim everything else completely
+                    }
+                    return node.type === 'folder' ? '#FFD700' : (heatColors[node.heat] || heatColors["Medium"]);
+                })
                 .nodeResolution(24) // Optimal res for fallback boundaries
                 
                 // Link visuals (Structural vs Dependency)
-                .linkWidth(link => link.type === 'structural' ? 0.5 : 2.0)
-                .linkColor(link => link.type === 'structural' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 242, 255, 0.4)')
-                .linkDirectionalParticles(link => link.type === 'dependency' ? 3 : 0)
-                .linkDirectionalParticleWidth(3.0)
-                .linkDirectionalParticleColor(() => '#00F2FF')
+                .linkWidth(link => {
+                    if (link.type === 'structural') return 0.5;
+                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
+                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
+                    if (window.SelectedNodeId && (sId === window.SelectedNodeId || tId === window.SelectedNodeId)) return 4.0;
+                    return 2.0;
+                })
+                .linkColor(link => {
+                    if (link.type === 'structural') return 'rgba(255, 255, 255, 0.1)';
+                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
+                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
+                    if (window.SelectedNodeId && (sId === window.SelectedNodeId || tId === window.SelectedNodeId)) return 'rgba(255, 0, 85, 0.9)'; // Red alert line
+                    if (window.SelectedNodeId) return 'rgba(0, 242, 255, 0.05)'; // Dim unrelated
+                    return 'rgba(0, 242, 255, 0.4)';
+                })
+                .linkDirectionalParticles(link => {
+                    if (link.type !== 'dependency') return 0;
+                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
+                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
+                    if (window.SelectedNodeId && (sId === window.SelectedNodeId || tId === window.SelectedNodeId)) return 6; // Double particles for blast
+                    if (window.SelectedNodeId) return 0; // Disable others
+                    return 3;
+                })
+                .linkDirectionalParticleWidth(link => {
+                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
+                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
+                    if (window.SelectedNodeId && (sId === window.SelectedNodeId || tId === window.SelectedNodeId)) return 5.0; 
+                    return 3.0;
+                })
+                .linkDirectionalParticleColor(link => {
+                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
+                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
+                    if (window.SelectedNodeId && (sId === window.SelectedNodeId || tId === window.SelectedNodeId)) return '#FF0055'; 
+                    return '#00F2FF';
+                })
                 .linkDirectionalParticleSpeed(d => 0.008)
                 
                 .backgroundColor('rgba(0,0,0,0)') // Transparent to show tailwind grid
@@ -424,6 +473,30 @@
                         heatEl.style.color = heatColors[node.heat] || "white";
                         
                         document.getElementById('inspect-purpose').innerText = node.purpose || "Generic Utility";
+                        document.getElementById('inspect-narration').innerText = node.narration || "No context provided.";
+
+                        // Trigger Blast Radius
+                        window.SelectedNodeId = node.id;
+                        window.BlastRadiusNodes = new Set([node.id]);
+                        
+                        // Find all direct dependency neighbors
+                        const graphData = getVisibleGraph();
+                        graphData.links.forEach(l => {
+                            if (l.type === 'dependency') {
+                                const sId = typeof l.source === 'object' ? l.source.id : l.source;
+                                const tId = typeof l.target === 'object' ? l.target.id : l.target;
+                                if (sId === node.id) window.BlastRadiusNodes.add(tId);
+                                if (tId === node.id) window.BlastRadiusNodes.add(sId);
+                            }
+                        });
+                        
+                        // Force WebGL updates
+                        Graph.nodeColor(Graph.nodeColor())
+                             .linkColor(Graph.linkColor())
+                             .linkWidth(Graph.linkWidth())
+                             .linkDirectionalParticles(Graph.linkDirectionalParticles())
+                             .linkDirectionalParticleWidth(Graph.linkDirectionalParticleWidth())
+                             .linkDirectionalParticleColor(Graph.linkDirectionalParticleColor());
 
                         const symContainer = document.getElementById('inspect-symbols');
                         symContainer.innerHTML = ''; // wipe
@@ -453,6 +526,21 @@
                         node,
                         1500
                     );
+                })
+                .onBackgroundClick(() => {
+                    // Reset Blast Radius on empty click
+                    if (window.SelectedNodeId !== null) {
+                        window.SelectedNodeId = null;
+                        window.BlastRadiusNodes.clear();
+                        
+                        // Force WebGL restore
+                        Graph.nodeColor(Graph.nodeColor())
+                             .linkColor(Graph.linkColor())
+                             .linkWidth(Graph.linkWidth())
+                             .linkDirectionalParticles(Graph.linkDirectionalParticles())
+                             .linkDirectionalParticleWidth(Graph.linkDirectionalParticleWidth())
+                             .linkDirectionalParticleColor(Graph.linkDirectionalParticleColor());
+                    }
                 });
                 
             // Fix Interactivity Lag: Use Native Engine Rotation instead of setInterval!

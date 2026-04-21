@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 from brahm_kosh.models import Project
 from brahm_kosh.analysis.architect import analyze_structure
+from brahm_kosh.analysis.narrator import generate_narration
 
 
 class ProjectGraphServer:
@@ -50,7 +51,8 @@ class ProjectGraphServer:
                 "heat": fm.heat_label,
                 "purpose": fm.purpose,
                 "language": fm.language,
-                "symbols": [s.name for s in fm.symbols]
+                "symbols": [s.name for s in fm.symbols],
+                "narration": generate_narration(fm)
             })
             
             # Forward dependencies become links (edges) of type 'dependency'
