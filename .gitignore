@@ -30,5 +30,21 @@ htmlcov/
 # OS
 .DS_Store
 
-# GSD planning (tracked in git for this project)
-# .planning/
+# Local-only planning + AI agent state — not for the public repo
+.planning/
+.claude/
+.cursor/
+
+# Project report (kept locally; not part of the source artifact)
+REPORT.md
+*.docx
+~$*.docx
+
+# Scratch / experimental files
+scratch.py
+scratch.js
+scratch_html_test.py
+server.log
+
+# Local user-specific brahm-kosh ignore (the example IS tracked)
+.brahmkoshignore

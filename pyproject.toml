@@ -17,8 +17,17 @@ dependencies = [
     "rich>=13.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
 [project.scripts]
 brahm-kosh = "brahm_kosh.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["brahm_kosh*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
