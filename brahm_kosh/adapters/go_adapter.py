@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from brahm_kosh.parse_cache import memoize_by_mtime
 from brahm_kosh.models import FileModel, Module, Project, Symbol, SymbolKind
 
 
@@ -38,6 +39,17 @@ _RE_FUNC_DECL = re.compile(
     r"^[ \t]*func\s+(?:\([^)]+\)\s+)?(\w+)\s*\(",
     re.MULTILINE,
 )
+
+_RE_IMPORT_SINGLE = re.compile(r'^\s*import\s+"([^"]+)"', re.MULTILINE)
+_RE_IMPORT_BLOCK = re.compile(r'^\s*import\s*\(([^)]*)\)', re.MULTILINE | re.DOTALL)
+_RE_QUOTED_STRING = re.compile(r'"([^"]+)"')
+
+
+def _extract_imports(source: str) -> list[str]:
+    found = list(_RE_IMPORT_SINGLE.findall(source))
+    for block in _RE_IMPORT_BLOCK.findall(source):
+        found.extend(_RE_QUOTED_STRING.findall(block))
+    return found
 
 _RE_BRANCH = re.compile(
     r"\b(if|else\s+if|for|switch|case\b|select|defer)\b",
@@ -162,6 +174,7 @@ def _parse_symbols(source: str, lines: list[str]) -> list[Symbol]:
     return symbols
 
 
+@memoize_by_mtime
 def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
     rel_path = os.path.relpath(file_path, project_root)
     name = os.path.basename(file_path)
@@ -191,6 +204,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         line_count=line_count,
         symbols=symbols,
         language="Go",
+        raw_imports=_extract_imports(source),
     )
 
 

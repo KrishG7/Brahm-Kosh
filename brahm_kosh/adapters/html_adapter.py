@@ -17,6 +17,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Optional
 
+from brahm_kosh.parse_cache import memoize_by_mtime
 from brahm_kosh.models import FileModel, Module, Project, Symbol, SymbolKind
 
 
@@ -51,20 +52,34 @@ class BrahmHTMLParser(HTMLParser):
         self.source_lines = source_lines
         self.current_depth = 0
         self.max_depth = 0
-        
+
         self.root_symbols: list[Symbol] = []
         # Stack stores tuples of (tag_name, Symbol)
         self.stack: list[tuple[str, Symbol]] = []
-        
+        # Local asset references: <script src>, <link href> — skip protocol URLs.
+        self.imports: list[str] = []
+
     def handle_starttag(self, tag: str, attrs: list[tuple[str, Optional[str]]]) -> None:
         tag = tag.lower()
+        attr_dict = dict(attrs)
+
+        # Asset linkage — record before early-returning for void tags
+        src = None
+        if tag == "script":
+            src = attr_dict.get("src")
+        elif tag == "link":
+            src = attr_dict.get("href")
+        elif tag in ("img", "iframe", "audio", "video", "source"):
+            src = attr_dict.get("src")
+        if src and not src.startswith(("http://", "https://", "//", "data:", "mailto:", "#")):
+            self.imports.append(src)
+
         if tag in VOID_TAGS:
             return
 
         self.current_depth += 1
         self.max_depth = max(self.max_depth, self.current_depth)
-        
-        attr_dict = dict(attrs)
+
         tag_id = attr_dict.get("id")
         
         # Decide if this tag is a Symbol
@@ -139,6 +154,7 @@ class BrahmHTMLParser(HTMLParser):
                 popped_sym.complexity = _clamp(raw)
 
 
+@memoize_by_mtime
 def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
     """Parse an HTML file into a FileModel."""
     rel_path = os.path.relpath(file_path, project_root)
@@ -173,6 +189,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         line_count=len(lines),
         symbols=parser.root_symbols,
         language="HTML",
+        raw_imports=list(parser.imports),
     )
 
 

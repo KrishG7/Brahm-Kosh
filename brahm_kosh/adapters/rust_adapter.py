@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from brahm_kosh.parse_cache import memoize_by_mtime
 from brahm_kosh.models import FileModel, Module, Project, Symbol, SymbolKind
 
 
@@ -48,6 +49,23 @@ _RE_BRANCH = re.compile(
     r"\b(if|else\s+if|for|while|loop|match)\b",
     re.MULTILINE,
 )
+
+# `use foo::bar::Baz;` and `mod foo;` — Rust's mod layout is complex, so
+# this is best-effort. The resolver does a basename lookup and drops what
+# doesn't exist in the project.
+_RE_USE = re.compile(r"^\s*(?:pub\s+)?use\s+([\w:]+)", re.MULTILINE)
+_RE_MOD = re.compile(r"^\s*(?:pub\s+)?mod\s+(\w+)\s*;", re.MULTILINE)
+
+
+def _extract_imports(source: str) -> list[str]:
+    found: list[str] = []
+    for raw in _RE_USE.findall(source):
+        parts = [p for p in raw.split("::") if p and p not in ("crate", "self", "super")]
+        if parts and parts[0] not in ("std", "core", "alloc"):
+            found.append("/".join(parts))
+    found.extend(_RE_MOD.findall(source))
+    return found
+
 
 _RE_CALL = re.compile(r"\b(\w+)\s*\(", re.MULTILINE)
 
@@ -161,6 +179,7 @@ def _parse_symbols(source: str, lines: list[str]) -> list[Symbol]:
     return symbols
 
 
+@memoize_by_mtime
 def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
     rel_path = os.path.relpath(file_path, project_root)
     name = os.path.basename(file_path)
@@ -190,6 +209,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         line_count=line_count,
         symbols=symbols,
         language="Rust",
+        raw_imports=_extract_imports(source),
     )
 
 

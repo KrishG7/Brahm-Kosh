@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from brahm_kosh.parse_cache import memoize_by_mtime
 from brahm_kosh.models import FileModel, Module, Project, Symbol, SymbolKind
 
 
@@ -43,6 +44,16 @@ _RE_METHOD_DECL = re.compile(
     r"\s*\{",
     re.MULTILINE,
 )
+
+_RE_IMPORT = re.compile(
+    r"^\s*import\s+(?:static\s+)?([\w.]+(?:\.\*)?)\s*;",
+    re.MULTILINE,
+)
+
+
+def _extract_imports(source: str) -> list[str]:
+    return _RE_IMPORT.findall(source)
+
 
 _RE_BRANCH = re.compile(
     r"\b(if|else\s+if|for|while|switch|case\b|catch|finally|try)\b",
@@ -163,6 +174,7 @@ def _parse_symbols(source: str, lines: list[str]) -> list[Symbol]:
     return symbols
 
 
+@memoize_by_mtime
 def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
     rel_path = os.path.relpath(file_path, project_root)
     name = os.path.basename(file_path)
@@ -192,6 +204,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         line_count=line_count,
         symbols=symbols,
         language="Java",
+        raw_imports=_extract_imports(source),
     )
 
 

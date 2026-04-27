@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import ast
 import os
-from pathlib import Path
 from typing import Optional
 
+from brahm_kosh.parse_cache import memoize_by_mtime
 from brahm_kosh.models import FileModel, Module, Project, Symbol, SymbolKind
 
 
@@ -98,6 +98,28 @@ class ComplexityCounter(ast.NodeVisitor):
         self._enter_branch(node)
 
 
+def _extract_imports(tree: ast.AST) -> list[str]:
+    """Walk the AST and return import names as resolver-friendly strings."""
+    imports: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports.append(alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            level = node.level or 0
+            if level > 0:
+                # Relative import → translate into ./  or ../ form the resolver understands
+                prefix = "./" if level == 1 else "../" * (level - 1)
+                raw = prefix + mod.replace(".", "/") if mod else prefix.rstrip("/")
+                if raw:
+                    imports.append(raw)
+            else:
+                if mod:
+                    imports.append(mod)
+    return imports
+
+
 def _get_docstring(node: ast.AST) -> Optional[str]:
     """Extract docstring from a function or class node."""
     try:
@@ -153,6 +175,7 @@ def _parse_class(node: ast.ClassDef) -> Symbol:
     )
 
 
+@memoize_by_mtime
 def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
     """
     Parse a single Python file into a FileModel.
@@ -207,6 +230,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         line_count=lines,
         symbols=symbols,
         language="Python",
+        raw_imports=_extract_imports(tree),
     )
 
 

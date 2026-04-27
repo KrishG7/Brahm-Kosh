@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from brahm_kosh.parse_cache import memoize_by_mtime
 from brahm_kosh.models import FileModel, Module, Project, Symbol, SymbolKind
 
 
@@ -30,7 +31,7 @@ def should_skip_dir(dirname: str) -> bool:
 
 # Regex patterns
 _RE_CLASS_DECL = re.compile(
-    r"^[ \t]*(?:(?:abstract|final)\s+)?(?:class|interface|trait)\s+(\w+)",
+    r"^[ \t]*(?:(?:abstract|final|readonly)\s+)*(?:class|interface|trait|enum)\s+(\w+)",
     re.MULTILINE,
 )
 
@@ -39,6 +40,21 @@ _RE_METHOD_DECL = re.compile(
     r"function\s+(&?\w+)\s*\(",
     re.MULTILINE,
 )
+
+_RE_USE = re.compile(r"^\s*use\s+([\w\\]+)\s*(?:;|\s+as)", re.MULTILINE)
+_RE_PHP_REQUIRE = re.compile(
+    r"""\b(?:require|require_once|include|include_once)\s*\(?\s*['"]([^'"]+)['"]"""
+)
+
+
+def _extract_imports(source: str) -> list[str]:
+    found: list[str] = []
+    for raw in _RE_USE.findall(source):
+        # Convert `Foo\Bar\Baz` → `Foo/Bar/Baz` for the resolver
+        found.append(raw.replace("\\", "/"))
+    found.extend(_RE_PHP_REQUIRE.findall(source))
+    return found
+
 
 _RE_BRANCH = re.compile(
     r"\b(if|elseif|for|foreach|while|switch|case\b|catch|try)\b",
@@ -203,6 +219,7 @@ def _parse_symbols(source: str, lines: list[str]) -> list[Symbol]:
     return symbols
 
 
+@memoize_by_mtime
 def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
     rel_path = os.path.relpath(file_path, project_root)
     name = os.path.basename(file_path)
@@ -232,6 +249,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         line_count=line_count,
         symbols=symbols,
         language="PHP",
+        raw_imports=_extract_imports(source),
     )
 
 

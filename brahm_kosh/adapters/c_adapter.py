@@ -24,6 +24,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from brahm_kosh.parse_cache import memoize_by_mtime
 from brahm_kosh.models import FileModel, Module, Project, Symbol, SymbolKind
 
 
@@ -96,6 +97,13 @@ _RE_BRANCH = re.compile(
 
 # Function calls
 _RE_CALL = re.compile(r"\b(\w+)\s*\(", re.MULTILINE)
+
+# Local includes (only `#include "foo.h"` — ignore `<system>` includes)
+_RE_INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
+
+
+def _extract_imports(source: str) -> list[str]:
+    return _RE_INCLUDE.findall(source)
 
 _C_KEYWORDS = {
     "if", "for", "while", "switch", "return", "sizeof", "typeof",
@@ -255,6 +263,7 @@ def _parse_symbols(source: str, lines: list[str]) -> list[Symbol]:
     return symbols
 
 
+@memoize_by_mtime
 def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
     rel_path = os.path.relpath(file_path, project_root)
     name = os.path.basename(file_path)
@@ -284,6 +293,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         line_count=line_count,
         symbols=symbols,
         language="C/C++",
+        raw_imports=_extract_imports(source),
     )
 
 

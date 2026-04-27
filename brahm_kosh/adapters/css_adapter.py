@@ -10,10 +10,19 @@ the number of rules (declarations) inside it.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Optional
 
+from brahm_kosh.parse_cache import memoize_by_mtime
 from brahm_kosh.models import FileModel, Module, Project, Symbol, SymbolKind
+
+
+_RE_CSS_IMPORT = re.compile(r"""@import\s+(?:url\s*\(\s*)?['"]([^'"]+)['"]""")
+
+
+def _extract_imports(source: str) -> list[str]:
+    return _RE_CSS_IMPORT.findall(source)
 
 
 SKIP_DIRS = {
@@ -53,21 +62,22 @@ def _parse_symbols(source: str, lines: list[str]) -> list[Symbol]:
     
     in_comment = False
     
+    inline_comment_re = re.compile(r"/\*.*?\*/")
+
     for i, line in enumerate(lines):
         line_clean = line.strip()
-        
-        # Extremely basic comment removal for the line
-        if "/*" in line_clean and "*/" in line_clean:
-            # Inline comment
-            line_clean = line_clean.split("/*")[0] + line_clean.split("*/")[1]
-            
+
+        # Strip ALL fully-inline /*...*/ comments first (previous version
+        # only handled the first pair, losing text after subsequent ones).
+        line_clean = inline_comment_re.sub("", line_clean)
+
         if "/*" in line_clean:
             in_comment = True
             line_clean = line_clean.split("/*")[0]
-            
+
         if "*/" in line_clean:
             in_comment = False
-            line_clean = line_clean.split("*/")[1]
+            line_clean = line_clean.split("*/", 1)[1]
             
         if in_comment:
             continue
@@ -121,6 +131,7 @@ def _parse_symbols(source: str, lines: list[str]) -> list[Symbol]:
     return symbols
 
 
+@memoize_by_mtime
 def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
     rel_path = os.path.relpath(file_path, project_root)
     name = os.path.basename(file_path)
@@ -150,6 +161,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         line_count=line_count,
         symbols=symbols,
         language="CSS",
+        raw_imports=_extract_imports(source),
     )
 
 

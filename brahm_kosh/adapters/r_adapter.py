@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from brahm_kosh.parse_cache import memoize_by_mtime
 from brahm_kosh.models import FileModel, Module, Project, Symbol, SymbolKind
 
 
@@ -37,6 +38,14 @@ _RE_BRANCH = re.compile(
     r"\b(if|else|for|while|repeat|switch)\b",
     re.MULTILINE,
 )
+
+_RE_SOURCE = re.compile(r"""\bsource\s*\(\s*['"]([^'"]+)['"]""")
+
+
+def _extract_imports(source: str) -> list[str]:
+    # library()/require() pull in external R packages, not project files.
+    # Only `source("file.R")` loads local code.
+    return _RE_SOURCE.findall(source)
 
 _RE_CALL = re.compile(r"\b([\w.]+)\s*\(", re.MULTILINE)
 
@@ -132,6 +141,7 @@ def _parse_symbols(source: str, lines: list[str]) -> list[Symbol]:
     return symbols
 
 
+@memoize_by_mtime
 def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
     rel_path = os.path.relpath(file_path, project_root)
     name = os.path.basename(file_path)
@@ -161,6 +171,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         line_count=line_count,
         symbols=symbols,
         language="R",
+        raw_imports=_extract_imports(source),
     )
 
 

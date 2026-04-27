@@ -23,6 +23,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from brahm_kosh.parse_cache import memoize_by_mtime
 from brahm_kosh.models import FileModel, Module, Project, Symbol, SymbolKind
 
 
@@ -89,6 +90,21 @@ _RE_CALL = re.compile(r"\b(\w+)\s*\(", re.MULTILINE)
 # Nesting: opening braces / brackets that deepen control flow
 _RE_OPEN_BRACE = re.compile(r"[{(]")
 _RE_CLOSE_BRACE = re.compile(r"[})]")
+
+# Import / require extraction
+_RE_ES_IMPORT = re.compile(r"""\bimport\s+(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]""")
+_RE_FUNC_IMPORT = re.compile(r"""(?:\brequire|\bimport)\s*\(\s*['"]([^'"]+)['"]\s*\)""")
+_RE_REEXPORT = re.compile(r"""\bexport\s+[^'"]*\s+from\s+['"]([^'"]+)['"]""")
+
+
+def _extract_imports(source: str) -> list[str]:
+    """Extract ES module imports, CommonJS require, dynamic import, re-exports."""
+    found: list[str] = []
+    for regex in (_RE_ES_IMPORT, _RE_FUNC_IMPORT, _RE_REEXPORT):
+        found.extend(regex.findall(source))
+    # Drop Node builtins; everything else is passed to the resolver, which
+    # will silently skip anything (npm packages, etc.) that doesn't resolve.
+    return [imp for imp in found if imp and not imp.startswith("node:")]
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +291,7 @@ def _parse_symbols_from_source(source: str, lines: list[str]) -> list[Symbol]:
     return symbols
 
 
+@memoize_by_mtime
 def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
     """Parse a single JS/TS file into a FileModel."""
     rel_path = os.path.relpath(file_path, project_root)
@@ -306,6 +323,7 @@ def parse_file(file_path: str, project_root: str) -> Optional[FileModel]:
         line_count=line_count,
         symbols=symbols,
         language="JavaScript/TypeScript",
+        raw_imports=_extract_imports(source),
     )
 
 
