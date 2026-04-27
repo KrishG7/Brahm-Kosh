@@ -7,7 +7,6 @@ Beautiful terminal output powered by Rich.
 from __future__ import annotations
 
 import json
-import sys
 import time
 
 import click
@@ -130,18 +129,35 @@ def analyze_cmd(path: str, json_out: bool, top_n: int, lang: str | None):
 @click.argument("path", default=".", type=click.Path(exists=True))
 @click.option("--port", default=8080, help="Port to run the 3D server on.")
 @click.option("--lang", default=None, help="Analyze only a specific language.")
-def serve_cmd(path: str, port: int, lang: str | None):
+@click.option("--watch", is_flag=True, help="Re-analyze on file changes and live-update the open browser tab.")
+@click.option("--no-browser", is_flag=True, help="Don't auto-open the system browser.")
+def serve_cmd(path: str, port: int, lang: str | None, watch: bool, no_browser: bool):
     """Serve the 3D interactive codebase graph locally.
-    
-    This analyzes the codebase and spins up a local web server (default port: 8080)
-    hosting the interactive 3D frontend interface, bridged directly to Brahm-Kosh.
+
+    Spins up a local web server (default port 8080) hosting the 3D viewer.
+    With --watch, file changes inside PATH trigger a live re-analysis and
+    the open browser tab repaints automatically — no reload, no Ctrl-R.
     """
     from brahm_kosh.server import serve_project
-    
+
     with console.status("[bold cyan]Analyzing codebase for 3D generation...[/bold cyan]", spinner="dots"):
         project, _ = analyze(path, top_n=100, lang=lang)
-        
-    serve_project(project, port)
+
+    serve_project(project, port=port, watch=watch, open_browser=not no_browser)
+
+
+@main.command(name="diff")
+@click.argument("ref", type=str)
+@click.option("--path", default=".", type=click.Path(exists=True), help="Path to the git repository.")
+@click.option("--lang", default=None, help="Analyze only a specific language.")
+def diff_cmd(ref: str, path: str, lang: str | None):
+    """Compare architecture against a specific git reference.
+
+    REF can be a branch, tag, or commit hash (e.g., main, HEAD~1).
+    Evaluates how complexity and coupling have changed.
+    """
+    from brahm_kosh.cli_diff import run_diff
+    run_diff(path, ref, lang)
 
 
 def _run_visual(path: str, top_n: int, lang: str | None = None):
