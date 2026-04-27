@@ -12,13 +12,27 @@ Usage:
 from __future__ import annotations
 
 import importlib
+import os
 
-from brahm_kosh.adapters.registry import detect_languages, get_adapter, list_adapters
+from brahm_kosh.adapters.registry import detect_languages, get_adapter
 from brahm_kosh.analysis.complexity import score_project
 from brahm_kosh.analysis.hotspots import Hotspot, find_hotspots
 from brahm_kosh.analysis.purpose import infer_purposes
 from brahm_kosh.analysis.dependencies import compute_lexical_dependencies
-from brahm_kosh.models import FileModel, Metadata, Module, Project
+from brahm_kosh.analysis.domains import annotate_project as annotate_domains
+from brahm_kosh.models import Project
+
+
+# ---------------------------------------------------------------------------
+# Parse cache — the actual mtime-based cache lives in `brahm_kosh.parse_cache`
+# and is applied per-adapter via the @memoize_by_mtime decorator. This module
+# re-exports `invalidate_cache` for backwards compatibility with callers that
+# already imported it from here.
+# ---------------------------------------------------------------------------
+
+from brahm_kosh.parse_cache import invalidate as invalidate_cache
+
+__all__ = ["analyze", "invalidate_cache"]
 
 # ---------------------------------------------------------------------------
 # Adapter auto-loading
@@ -95,7 +109,6 @@ def analyze(
         # Auto-discover which languages are present
         adapters_to_run = detect_languages(root_path)
         if not adapters_to_run:
-            # Fallback — nothing registered matched; default to python
             adapters_to_run = ["python"]
 
     # Run each adapter and collect sub-projects
@@ -106,9 +119,13 @@ def analyze(
         try:
             adapter = get_adapter(adapter_name)
         except ValueError:
-            continue  # Adapter not registered (module not yet implemented)
+            continue
 
         sub_project = adapter(root_path)
+
+        # Each adapter's parse_file is wrapped in @memoize_by_mtime, so the
+        # parsing itself is already skipped for unchanged files — no extra
+        # post-hoc patching needed here.
 
         # Score + purpose
         score_project(sub_project)
@@ -127,15 +144,17 @@ def analyze(
         merged.metadata.languages = languages_found
     else:
         # Multi-language — merge into one Project
-        merged = _merge_projects(sub_projects, root_path, languages_found)
+        merged = _merge_projects(sub_projects, root_path)
 
     # Compute final metadata
     merged.compute_metadata()
     if languages_found:
         merged.metadata.languages = languages_found
 
-    # Resolve cross-file dependencies
+    # Resolve cross-file dependencies, then classify each file's domains
+    # (database/ui/network/...) from its import roots.
     compute_lexical_dependencies(merged)
+    annotate_domains(merged)
 
     # Rank hotspots across the merged project
     hotspots = find_hotspots(merged, top_n=top_n)
@@ -143,12 +162,13 @@ def analyze(
     return merged, hotspots
 
 
-def _merge_projects(sub_projects: list[Project], root_path: str, languages: list[str]) -> Project:
+def _merge_projects(sub_projects: list[Project], root_path: str) -> Project:
     """
     Merge multiple single-language Project models into one unified Project.
 
     Modules and root files from each sub-project are combined under a single
-    Project root. Language label is carried via the Metadata.
+    Project root. The caller is responsible for setting `metadata.languages`
+    on the returned project.
     """
     import os
     merged = Project(
