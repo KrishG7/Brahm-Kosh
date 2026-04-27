@@ -1,0 +1,37 @@
+# .brahmkoshignore — Brahm-Kosh ignore patterns
+# Copy this to .brahmkoshignore and customise for your repo.
+# One glob pattern per line. # for comments. Matches against relative paths.
+
+# Generated / build output
+dist/
+build/
+out/
+*.min.js
+*.min.css
+*.bundle.js
+
+# ML model weights & large binary blobs
+*.pt
+*.pth
+*.onnx
+*.pkl
+*.h5
+*.bin
+
+# Vendored dependencies (already covered by default, but explicit is safe)
+vendor/
+third_party/
+node_modules/
+
+# Auto-generated protobuf / gRPC stubs
+*_pb2.py
+*_pb2_grpc.py
+*.pb.go
+
+# Coverage / test artefacts
+.coverage
+htmlcov/
+*.lcov
+
+# Migrations (usually noise, not architecture)
+migrations/
