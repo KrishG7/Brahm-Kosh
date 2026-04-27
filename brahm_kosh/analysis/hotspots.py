@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from brahm_kosh.models import Project, Symbol
+from brahm_kosh.models import Project
 
 
 @dataclass

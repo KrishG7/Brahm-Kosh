@@ -96,8 +96,16 @@ class FileModel:
     complexity: float = 0.0
     purpose: Optional[str] = None
     language: str = "Unknown"
+    # Raw import strings as written in source ("os", "./foo.js", "com.bar.Baz").
+    # The language adapter populates these; the dependency resolver maps them
+    # to concrete project files and fills `dependencies` / `dependents`.
+    raw_imports: list[str] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
     dependents: list[str] = field(default_factory=list)
+    # Concerns this file touches (database, ui, network, ...) — populated
+    # by analysis.domains. A file that spans many domains is a coupling
+    # smell independent of its raw line count.
+    domains: set[str] = field(default_factory=set)
 
     @property
     def heat_label(self) -> str:
@@ -132,10 +140,14 @@ class FileModel:
             d["language"] = self.language
         if self.symbols:
             d["symbols"] = [s.to_dict() for s in self.symbols]
+        if self.raw_imports:
+            d["raw_imports"] = self.raw_imports
         if self.dependencies:
             d["dependencies"] = self.dependencies
         if self.dependents:
             d["dependents"] = self.dependents
+        if self.domains:
+            d["domains"] = sorted(self.domains)
         return d
 
 
