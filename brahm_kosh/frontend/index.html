@@ -10,6 +10,11 @@
     
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="//unpkg.com/3d-force-graph"></script>
+    <!-- Syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- Code Explorer -->
+    <link rel="stylesheet" href="/code-explorer.css">
 
     <script id="tailwind-config">
         tailwind.config = {
@@ -49,6 +54,27 @@
     <style>
         body { font-family: 'Inter', sans-serif; }
         h1, h2, h3, h4, h5, h6, .font-headline { font-family: 'Space Grotesk', sans-serif; }
+
+        /* Material Symbols Outlined — Google Fonts only ships @font-face;
+           the class definition (font-family + ligature lookup) has to live
+           on the page. Without this, icon names render as raw text. */
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: inherit;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            font-feature-settings: 'liga';
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+
         .bg-grid-pattern {
             background-size: 40px 40px;
             background-image: linear-gradient(to right, rgba(58, 73, 75, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(58, 73, 75, 0.05) 1px, transparent 1px);
@@ -74,9 +100,39 @@
 <header class="fixed top-0 w-full z-50 bg-zinc-950/60 backdrop-blur-[24px] shadow-[0_20px_40px_rgba(0,0,0,0.4)] border-b border-zinc-900/50 flex justify-between items-center h-16 px-6">
     <div class="flex items-center gap-4">
         <span class="text-[#00f2ff] font-['Space_Grotesk'] tracking-tighter uppercase text-2xl font-black" style="text-shadow: 0 0 15px rgba(0,242,255,0.4)">Brahma-Kosha</span>
+        <div id="header-stats" class="hidden md:flex items-center gap-3 ml-4 text-xs font-body text-zinc-500">
+            <span id="hs-files"></span>
+            <span class="text-zinc-700">·</span>
+            <span id="hs-monoliths" class="text-[#ff0055]"></span>
+            <span class="text-zinc-700">·</span>
+            <span id="hs-cycles" class="text-[#ff8c00]"></span>
+        </div>
     </div>
-    <div class="flex items-center gap-6">
-        <!-- Buttons removed directly to fix confusing UI -->
+    <div class="flex items-center gap-3">
+        <!-- Focus pill (always visible in header) -->
+        <div id="focus-pill"
+             class="hidden
+                    bg-[#0e0e10]/95 backdrop-blur-md
+                    border border-white/30 rounded-full
+                    pl-4 pr-2 py-1
+                    shadow-[0_0_24px_rgba(255,255,255,0.18)]
+                    flex items-center gap-3 text-sm font-body">
+            <span class="w-2 h-2 rounded-full bg-white animate-pulse shadow-[0_0_8px_rgba(255,255,255,0.8)]"></span>
+            <span class="text-white">
+                <span class="text-[10px] text-zinc-400 uppercase tracking-widest mr-1">Focus</span>
+                <span id="focus-pill-name" class="font-semibold"></span>
+                <span id="focus-pill-path" class="text-[10px] text-zinc-500 ml-2"></span>
+            </span>
+            <span class="text-[10px] text-[#00F2FF]">↑<span id="focus-pill-out">0</span></span>
+            <span class="text-[10px] text-[#FF8C00]">↓<span id="focus-pill-in">0</span></span>
+            <button onclick="window.clearFocus()" class="ml-1 text-zinc-400 hover:text-white">✕</button>
+        </div>
+        <!-- Search button -->
+        <button onclick="Search.open()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-800/70 border border-zinc-700/50 text-zinc-400 hover:text-white hover:border-[#00f2ff]/40 text-xs font-body transition-all">
+            <span class="material-symbols-outlined text-[14px]">search</span>
+            <span>Search</span>
+            <kbd style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:0 4px;font-size:10px">⌘K</kbd>
+        </button>
     </div>
 </header>
 
@@ -111,12 +167,99 @@
 
     <!-- Main Workspace Canvas -->
     <main class="ml-64 flex-1 relative bg-surface-container-lowest bg-grid-pattern overflow-hidden">
+    <!-- Vignette overlay: darkens corners to draw focus to center -->
+    <div id="vignette" style="pointer-events:none;position:absolute;inset:0;z-index:2;background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%)"></div>
         
         <!-- ======================= -->
         <!-- VIEW 1: 3D GRAPH CANVAS -->
         <!-- ======================= -->
         <div id="view-3d" class="w-full h-full">
             <div id="3d-graph" class="scene-container"></div>
+
+            <!-- First-interaction hint -->
+            <div id="interaction-hint" style="
+                position:absolute;bottom:48px;left:50%;transform:translateX(-50%);
+                background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);
+                border:1px solid rgba(255,255,255,0.1);border-radius:999px;
+                padding:6px 16px;font-size:11px;color:#849495;
+                display:flex;align-items:center;gap:8px;
+                transition:opacity .6s;z-index:20;pointer-events:none">
+                <span class="material-symbols-outlined" style="font-size:14px">touch_app</span>
+                Drag to rotate &nbsp;·&nbsp; Scroll to zoom &nbsp;·&nbsp; Click file to explore
+            </div>
+
+            <!-- Filter Chips Container -->
+            <div style="position:absolute;top:12px;right:16px;z-index:25;display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+                <!-- Language filter chips -->
+                <div id="lang-filter-chips" style="display:flex;flex-wrap:wrap;gap:6px;max-width:340px;justify-content:flex-end">
+                </div>
+
+                <!-- Domain filter chips -->
+                <div id="domain-filter-chips" style="display:flex;flex-wrap:wrap;gap:6px;max-width:340px;align-items:center;justify-content:flex-end">
+                </div>
+            </div>
+
+            <!-- Sync Indicator — flashes during a watch-mode refresh -->
+            <div id="sync-indicator"
+                 class="hidden absolute top-6 right-6 z-30
+                        bg-[#0e0e10]/95 backdrop-blur-md
+                        border border-[#00F2FF]/40 rounded-full
+                        px-3 py-1.5
+                        shadow-[0_0_16px_rgba(0,242,255,0.25)]
+                        flex items-center gap-2 text-xs font-body text-[#00F2FF]">
+                <span class="material-symbols-outlined animate-spin text-[14px]">sync</span>
+                <span>Re-analysing…</span>
+            </div>
+
+            <!-- Focus Pill — appears when a file is selected -->
+            <div id="focus-pill"
+                 class="hidden absolute top-6 left-1/2 -translate-x-1/2 z-30
+                        bg-[#0e0e10]/95 backdrop-blur-md
+                        border border-white/30 rounded-full
+                        pl-4 pr-2 py-1.5
+                        shadow-[0_0_24px_rgba(255,255,255,0.18)]
+                        flex items-center gap-3 text-sm font-body">
+                <span class="w-2 h-2 rounded-full bg-white animate-pulse shadow-[0_0_8px_rgba(255,255,255,0.8)]"></span>
+                <span class="text-white">
+                    <span class="text-[10px] text-zinc-400 uppercase tracking-widest mr-1">Focus</span>
+                    <span id="focus-pill-name" class="font-semibold"></span>
+                    <span id="focus-pill-path" class="text-[10px] text-zinc-500 ml-2"></span>
+                </span>
+                <span class="flex items-center gap-2 text-[11px] ml-2">
+                    <span class="text-[#00F2FF]">→ <span id="focus-pill-out" class="font-bold">0</span></span>
+                    <span class="text-[#FF8C00]">← <span id="focus-pill-in" class="font-bold">0</span></span>
+                </span>
+                <button onclick="window.clearFocus()"
+                        class="bg-[#1c1b1d] hover:bg-[#2a2a2c] rounded-full w-6 h-6 flex items-center justify-center transition-colors"
+                        title="Clear selection (Esc)">
+                    <span class="material-symbols-outlined text-[14px] text-zinc-400">close</span>
+                </button>
+            </div>
+
+            <!-- Legend — anchors the color scheme so users know what the colors mean -->
+            <div id="graph-legend"
+                 class="absolute bottom-12 right-6 z-20
+                        bg-surface-container-low/80 backdrop-blur-md
+                        border border-outline-variant/30 rounded-lg p-3
+                        text-[11px] font-body text-zinc-300
+                        shadow-lg max-w-[220px]">
+                <div class="text-[10px] text-outline uppercase tracking-widest mb-2 font-semibold">Legend</div>
+                <div id="legend-default">
+                    <div class="flex items-center gap-2 mb-1"><span class="w-2.5 h-2.5 rounded-full bg-[#FFD700]"></span> Folder</div>
+                    <div class="flex items-center gap-2 mb-1"><span class="w-2.5 h-2.5 rounded-full bg-[#FF3366]"></span> Critical complexity</div>
+                    <div class="flex items-center gap-2 mb-1"><span class="w-2.5 h-2.5 rounded-full bg-[#FF8C00]"></span> High</div>
+                    <div class="flex items-center gap-2 mb-1"><span class="w-2.5 h-2.5 rounded-full bg-[#00F2FF]"></span> Medium</div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-[#00FF66]"></span> Low</div>
+                    <div class="text-[10px] text-zinc-500 mt-2 italic">Click any file to focus it.</div>
+                </div>
+                <div id="legend-focus" class="hidden">
+                    <div class="flex items-center gap-2 mb-1"><span class="w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_6px_white]"></span> Focused file</div>
+                    <div class="flex items-center gap-2 mb-1"><span class="w-2.5 h-2.5 rounded-full bg-[#00F2FF]"></span> Files this one imports</div>
+                    <div class="flex items-center gap-2 mb-1"><span class="w-2.5 h-2.5 rounded-full bg-[#FF8C00]"></span> Files that import this</div>
+                    <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-zinc-500/50"></span> Unrelated</div>
+                    <div class="text-[10px] text-zinc-500 mt-2 italic">Click background or × to clear.</div>
+                </div>
+            </div>
 
             <!-- Left Panel: Architectural Suggestions -->
             <div class="absolute top-6 left-6 w-80 bg-surface-container-low/80 backdrop-blur-[24px] border border-outline-variant/30 rounded-xl z-20 shadow-[0_20px_40px_rgba(0,0,0,0.6)] flex flex-col max-h-[calc(100vh-120px)] overflow-hidden">
@@ -130,48 +273,15 @@
                     <div class="text-xs text-zinc-400 animate-pulse">Running architectural inference...</div>
                 </div>
             </div>
+            <!-- Changed-files banner (watch mode) -->
+            <div id="changed-banner" style="
+                position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+                background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);
+                border:1px solid rgba(0,242,255,0.3);border-radius:8px;
+                padding:8px 16px;font-size:12px;color:#00f2ff;
+                display:none;align-items:center;gap:8px;z-index:30;
+                transition:opacity .4s;"> </div>
 
-            <!-- Right Panel: Floating Built-in Inspector -->
-            <div id="inspector-panel" class="absolute top-6 right-6 w-96 bg-surface-container-highest/90 backdrop-blur-[32px] border border-outline-variant/40 rounded-xl z-20 shadow-[0_30px_60px_rgba(0,242,255,0.15)] flex flex-col hidden transition-opacity">
-                <div class="p-5 border-b border-outline-variant/30 flex justify-between items-center">
-                    <div>
-                        <div class="text-[10px] text-[#00f2ff] uppercase tracking-[0.2em] mb-1 font-body">Node Inspector</div>
-                        <h2 id="inspect-title" class="font-headline text-xl text-white font-bold tracking-tight truncate drop-shadow-md">File.js</h2>
-                        <div id="inspect-path" class="text-xs text-zinc-300 mt-1 truncate">/src/file.js - 📝 JS</div>
-                    </div>
-                    <button onclick="document.getElementById('inspector-panel').classList.add('hidden')" class="text-outline hover:text-white transition-colors"><span class="material-symbols-outlined text-[20px]">close</span></button>
-                </div>
-                
-                <div class="p-5 space-y-4">
-                    <div class="grid grid-cols-2 gap-2">
-                        <div class="bg-surface-container/80 rounded p-2 text-center border border-outline-variant/20">
-                            <div class="text-[10px] text-outline mb-1 uppercase tracking-wider">Complexity Rank</div>
-                            <div id="inspect-heat" class="text-lg font-headline font-bold drop-shadow-md">Medium</div>
-                        </div>
-                        <div class="bg-surface-container/80 rounded p-2 text-center border border-outline-variant/20">
-                            <div class="text-[10px] text-outline mb-1 uppercase tracking-wider">Detected Purpose</div>
-                            <div id="inspect-purpose" class="text-sm font-headline text-[#00f2ff] font-bold mt-1">Utility</div>
-                        </div>
-                    </div>
-
-                    <div class="mb-5 bg-surface-container-high/40 p-4 rounded-lg border border-outline-variant/30 relative overflow-hidden group">
-                        <div class="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-[#00f2ff] to-[#ff0055]"></div>
-                        <h4 class="text-xs font-body text-outline uppercase tracking-widest mb-2 flex items-center gap-2">
-                            <span class="material-symbols-outlined text-[14px] text-[#00f2ff]">auto_awesome</span> AI Narration
-                        </h4>
-                        <div id="inspect-narration" class="text-sm text-white/90 leading-relaxed font-body">
-                            <!-- Narration injected here -->
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="text-xs font-body text-outline uppercase tracking-widest mb-2 border-b border-outline-variant/30 pb-1">Exposed Materials</h4>
-                        <div id="inspect-symbols" class="space-y-1.5 max-h-[40vh] overflow-y-auto pr-2">
-                            <!-- Symbols injected here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
 
         <!-- ======================= -->
@@ -200,16 +310,94 @@
         </div>
 
         <!-- Bottom Data Ticker -->
-        <div class="absolute bottom-0 left-0 w-full h-8 bg-surface-container-high/90 border-t border-outline-variant/30 flex items-center px-4 text-xs font-body text-outline backdrop-blur-xl z-30 shadow-[0_-5px_15px_rgba(0,0,0,0.3)]">
+        <div class="absolute bottom-0 left-0 w-full h-8 bg-surface-container-high/90 border-t border-outline-variant/30 flex items-center px-4 text-xs font-body text-outline backdrop-blur-xl z-30 shadow-[0_-5px_15px_rgba(0,0,0,0.3)]" style="justify-content:space-between">
             <div class="flex items-center gap-6">
-                <span class="flex items-center gap-1 text-[#00f2ff]"><span class="w-1.5 h-1.5 rounded-full bg-[#00f2ff] animate-pulse"></span> Neural connection established.</span>
+                <span class="flex items-center gap-1 text-[#00f2ff]"><span class="w-1.5 h-1.5 rounded-full bg-[#00f2ff] animate-pulse"></span> Neural connection active.</span>
                 <span id="stat-nodes">Nodes: ...</span>
                 <span id="stat-edges">Edges: ...</span>
                 <span id="stat-gods" class="text-[#ff0055] font-bold tracking-wide">Monolithic Files: ...</span>
             </div>
+            <div class="flex items-center gap-4 text-zinc-600">
+                <span id="stat-watch"></span>
+                <span id="stat-refresh"></span>
+                <span style="font-size:10px">/ search &nbsp;·&nbsp; R re-center &nbsp;·&nbsp; F fullscreen &nbsp;·&nbsp; 1/2 tabs</span>
+            </div>
         </div>
     </main>
 </div>
+
+<!-- ═══════════════════════════════════════════════
+     CODE EXPLORER MODAL
+══════════════════════════════════════════════════ -->
+<div id="ce-overlay">
+  <div id="ce-modal">
+
+    <!-- Header -->
+    <div id="ce-header">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span id="ce-badges"></span>
+        </div>
+        <div id="ce-title" style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:700;color:#fff"></div>
+        <div id="ce-subtitle" style="font-size:11px;color:#849495;margin-top:2px;font-family:'Inter',sans-serif"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-left:16px;flex-shrink:0">
+        <span id="ce-save-status" style="font-size:11px;color:#849495;font-family:'Inter',sans-serif"></span>
+        <button id="ce-save-btn" class="ce-btn ce-btn-success" onclick="CE.saveFile()" style="display:none">
+          <span class="material-symbols-outlined" style="font-size:14px">save</span> Save
+        </button>
+        <button id="ce-edit-btn" class="ce-btn ce-btn-ghost" onclick="CE.toggleEdit()">
+          <span class="material-symbols-outlined" style="font-size:14px">edit</span> Edit
+        </button>
+        <button class="ce-btn ce-btn-ghost" onclick="CE.close()" style="padding:6px 10px">
+          <span class="material-symbols-outlined" style="font-size:18px">close</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div id="ce-body">
+
+      <!-- Sidebar -->
+      <div id="ce-sidebar">
+        <div id="ce-sidebar-tabs">
+          <div id="ce-stab-symbols" class="ce-stab active" onclick="CE.switchSidebarTab('symbols')">Symbols</div>
+          <div id="ce-stab-deps" class="ce-stab" onclick="CE.switchSidebarTab('deps')">Dependencies</div>
+        </div>
+        <div id="ce-sidebar-content"></div>
+      </div>
+
+      <!-- Code panel -->
+      <div id="ce-code-panel">
+        <!-- AI narration strip -->
+        <div id="ce-narration"></div>
+
+        <!-- Multi-hop impact panel (upstream / downstream BFS results) -->
+        <div id="ce-impact"></div>
+
+        <!-- Refactor suggestions (only shown if file has disjoint clusters) -->
+        <div id="ce-refactor"></div>
+
+        <!-- Code viewer -->
+        <div id="ce-code-wrap">
+          <div id="ce-line-nums"></div>
+          <pre id="ce-code-view" class="hljs"></pre>
+          <textarea id="ce-code-edit" spellcheck="false"></textarea>
+        </div>
+
+        <!-- Blast radius footer -->
+        <div id="ce-blast-bar">
+          <span class="material-symbols-outlined" style="color:#ff0055;font-size:20px">local_fire_department</span>
+          <span id="ce-blast-label">Blast Radius</span>
+          <span id="ce-blast-files"></span>
+          <span id="ce-blast-count"></span>
+          <span style="font-size:11px;color:#849495;font-family:'Inter',sans-serif">files affected</span>
+        </div>
+      </div>
+
+    </div><!-- /ce-body -->
+  </div><!-- /ce-modal -->
+</div><!-- /ce-overlay -->
 
 <script>
     // Tab switching logic
@@ -227,32 +415,72 @@
         }
     }
 
-    // Ultra-vibrant Neon Premium Colors
+    // Heat palette — only used when nothing is focused.
     const heatColors = {
-        "Critical": "#FF0055", // Neon Red/Pink
-        "High": "#FF8C00",     // Bright Orange
-        "Medium": "#00F2FF",   // Cyberpunk Cyan
-        "Low": "#00FF66",      // Matrix Green
-        "Optimal": "#00F2FF"
+        "Critical": "#FF3366",
+        "High": "#FF8C00",
+        "Medium": "#00F2FF",
+        "Low": "#00FF66",
+        "Optimal": "#00F2FF",
     };
-    
-    let GlobalGraphData = null;
-    let ExpandedFolders = new Set(['root']); // Start with root expanded
+
+    // Selection palette — used when one file is focused.
+    const SEL = {
+        focus:   "#FFFFFF",                    // the file you're on
+        out:     "#00F2FF",                    // files this one imports
+        incoming:"#FF8C00",                    // files that import this one
+        ghostF:  "rgba(160, 175, 190, 0.30)",  // unrelated files (visible ghost)
+        ghostD:  "rgba(255, 215, 0, 0.18)",    // unrelated folders (faded gold)
+    };
+
+    window.GlobalGraphData = null;
+    let ExpandedFolders = new Set(['root']);
     window.SelectedNodeId = null;
+    window.OutgoingDeps   = new Set();
+    window.IncomingDeps   = new Set();
     window.BlastRadiusNodes = new Set();
+    window.activeLangFilters = new Set();
+    window.activeDomainFilter = null;
+
+    window.refreshGraphView = function() {
+        if (!window.GraphEngine) return;
+        window.GraphEngine.graphData(window.getVisibleGraph());
+        // Force the color/size accessors to re-evaluate so domain-dimming
+        // takes effect. (`nodeOpacity` is a SCALAR in three-force-graph;
+        // passing a function turned every node opaque-black.)
+        const G = window.GraphEngine;
+        G.nodeColor(G.nodeColor()).nodeVal(G.nodeVal());
+        if (window.syncListUI) window.syncListUI();
+    };
 
     // Rebuilds the visible graph based on what folders are expanded
-    function getVisibleGraph() {
-        if (!GlobalGraphData) return { nodes: [], links: [] };
+    window.getVisibleGraph = function() {
+        if (!window.GlobalGraphData) return { nodes: [], links: [] };
 
-        const visibleNodes = GlobalGraphData.nodes.filter(n => 
-            n.id === 'root' || ExpandedFolders.has(n.parent)
-        );
+        const visibleNodes = window.GlobalGraphData.nodes.filter(n => {
+            if (n.id !== 'root' && !ExpandedFolders.has(n.parent)) return false;
+            if (n.type === 'file' && window.activeLangFilters && window.activeLangFilters.size > 0) {
+                if (!window.activeLangFilters.has(n.language)) return false;
+            }
+            return true;
+        });
+
+        // Mutate existing objects for DomainFilter to avoid destroying physics state (x,y,z coordinates)
+        visibleNodes.forEach(n => {
+            if (n.type === 'file') {
+                if (window.activeDomainFilter) {
+                    const matches = n.domains?.includes(window.activeDomainFilter);
+                    n._dimmed = !matches;
+                } else {
+                    n._dimmed = false;
+                }
+            }
+        });
         
         const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
         
         // Only show links where BOTH source and target are visible
-        const visibleLinks = GlobalGraphData.links.filter(l => 
+        const visibleLinks = window.GlobalGraphData.links.filter(l => 
             visibleNodeIds.has(l.source.id || l.source) && 
             visibleNodeIds.has(l.target.id || l.target)
         );
@@ -260,372 +488,583 @@
         return { nodes: visibleNodes, links: visibleLinks };
     }
 
-    // Load graph data
-    fetch('/api/graph')
-        .then(res => res.json())
-        .then(data => {
-            GlobalGraphData = data;
-            document.getElementById('stat-nodes').innerText = `Total Nodes: ${data.nodes.length}`;
-            document.getElementById('stat-edges').innerText = `Total Edges: ${data.links.length}`;
+    // ─── Module-level state — outer scope so refreshes can rebuild ──
+    let childrenMap = {};
 
-            // MAP DATA FOR RECURSIVE TREE GENERATION
-            const tbody = document.getElementById('list-table-body');
-            const childrenMap = {};
-            data.nodes.forEach(n => {
-                if (n.id === 'root') return; // Prevent infinite recursion!
-                const p = n.parent || 'root';
-                if (!childrenMap[p]) childrenMap[p] = [];
-                childrenMap[p].push(n);
+    function _buildChildrenMap(data) {
+        const map = {};
+        data.nodes.forEach(n => {
+            if (n.id === 'root') return;
+            const p = n.parent || 'root';
+            if (!map[p]) map[p] = [];
+            map[p].push(n);
+        });
+        return map;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DIRECTORY LIST — outer-scope so it can be rebuilt on refresh
+    // ═══════════════════════════════════════════════════════════════
+    function buildListTree(parentId, level=0) {
+        const tbody = document.getElementById('list-table-body');
+        const children = childrenMap[parentId] || [];
+        children.sort((a, b) => {
+            if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+            return b.val - a.val;
+        });
+
+        children.forEach(node => {
+            const tr = document.createElement('tr');
+            const isFolder = node.type === 'folder';
+            tr.className = `border-b border-outline-variant/10 hover:bg-surface-container transition-colors row-item`;
+            tr.setAttribute('data-parent', parentId);
+            tr.setAttribute('data-id', node.id);
+            tr.style.display = parentId !== 'root' ? 'none' : 'table-row';
+
+            const padding = (level * 24) + 16;
+            const safeId = node.id.replace(/'/g, "\\'");
+
+            let iconHtml;
+            if (isFolder) {
+                iconHtml = `<button onclick="toggleFolderState('${safeId}', event)" class="mr-2 hover:text-white transition-colors" style="width: 20px;"><span class="material-symbols-outlined text-[16px] transition-transform" id="chev-${node.id}">chevron_right</span></button>
+                            <span class="material-symbols-outlined text-[16px] text-[#FFD700] mr-2">folder</span>`;
+            } else {
+                iconHtml = `<span class="inline-block w-[20px] mr-2"></span><span class="material-symbols-outlined text-[16px] text-[#00f2ff] mr-2">description</span>`;
+            }
+
+            // Whole row is clickable — toggle for folders, focus for files.
+            const rowOnClick = isFolder
+                ? `onclick="window.toggleFolderState('${safeId}', event)"`
+                : `onclick="window.focusFileNode('${safeId}')"`;
+
+            tr.innerHTML = `
+                <td class="p-4 py-2 font-mono cursor-pointer" style="padding-left: ${padding}px;" ${rowOnClick}>
+                    <div class="flex items-center text-zinc-300">
+                        ${iconHtml}
+                        ${node.name}
+                    </div>
+                    ${!isFolder && node.symbols ? `<div class="text-[10px] text-zinc-500 mt-0.5" style="margin-left: 48px;">${node.symbols.length} materials</div>` : ''}
+                </td>
+                <td class="p-4 py-2">${!isFolder ? `<span class="bg-surface-container px-2 py-1 rounded text-[10px] text-outline border border-outline-variant/30">${node.language}</span>` : ''}</td>
+                <td class="p-4 py-2 text-right">
+                    ${!isFolder ? `<span class="font-bold cursor-help" title="${node.heat}" style="color: ${heatColors[node.heat]}; text-shadow: 0 0 10px ${heatColors[node.heat]}66;">${node.val - 1}</span>` : ''}
+                </td>
+                <td class="p-4 py-2 text-zinc-400 italic text-[11px]">${!isFolder && node.purpose ? node.purpose : ''}</td>
+            `;
+            tbody.appendChild(tr);
+
+            if (isFolder) buildListTree(node.id, level + 1);
+        });
+    }
+
+    window.syncListUI = function() {
+        if (!window.GlobalGraphData) return;
+        document.querySelectorAll('.row-item').forEach(r => {
+            const pid = r.getAttribute('data-parent');
+            const id  = r.getAttribute('data-id');
+            let isVisible = true;
+            let curr = pid;
+            while (curr && curr !== 'root') {
+                if (!ExpandedFolders.has(curr)) { isVisible = false; break; }
+                const node = window.GlobalGraphData.nodes.find(n => n.id === curr);
+                curr = node ? node.parent : null;
+            }
+            r.style.display = isVisible ? 'table-row' : 'none';
+            const chev = document.getElementById('chev-' + id);
+            if (chev) chev.innerText = ExpandedFolders.has(id) ? 'expand_more' : 'chevron_right';
+        });
+    };
+
+    window.toggleFolderState = function(folderId, event=null) {
+        if (event) event.stopPropagation();
+        if (folderId === 'root') return;  // Root can't collapse — would empty 3D view
+        if (ExpandedFolders.has(folderId)) {
+            ExpandedFolders.delete(folderId);
+            const collapse = (id) => {
+                (childrenMap[id] || []).forEach(c => {
+                    if (c.type === 'folder' && ExpandedFolders.has(c.id)) {
+                        ExpandedFolders.delete(c.id);
+                        collapse(c.id);
+                    }
+                });
+            };
+            collapse(folderId);
+        } else {
+            ExpandedFolders.add(folderId);
+        }
+        if (window.GraphEngine) window.GraphEngine.graphData(window.getVisibleGraph());
+        window.syncListUI();
+    };
+
+    // ═══════════════════════════════════════════════════════════════
+    // FOCUS MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════
+    function _expandAncestors(nodeId) {
+        if (!window.GlobalGraphData) return false;
+        let changed = false;
+        let current = (window.GlobalGraphData.nodes.find(n => n.id === nodeId) || {}).parent;
+        while (current && current !== 'root') {
+            if (!ExpandedFolders.has(current)) { ExpandedFolders.add(current); changed = true; }
+            const pNode = window.GlobalGraphData.nodes.find(n => n.id === current);
+            current = pNode ? pNode.parent : null;
+        }
+        return changed;
+    }
+
+    window.focusFileNode = function(fileId) {
+        if (!window.GlobalGraphData) return;
+        const node = window.GlobalGraphData.nodes.find(n => n.id === fileId);
+        if (!node || node.type !== 'file') return;
+
+        window.SelectedNodeId = fileId;
+        window.OutgoingDeps   = new Set();
+        window.IncomingDeps   = new Set();
+        window.GlobalGraphData.links.forEach(l => {
+            if (l.type !== 'dependency') return;
+            const sId = typeof l.source === 'object' ? l.source.id : l.source;
+            const tId = typeof l.target === 'object' ? l.target.id : l.target;
+            if (sId === fileId) window.OutgoingDeps.add(tId);
+            if (tId === fileId) window.IncomingDeps.add(sId);
+        });
+        window.BlastRadiusNodes = new Set([fileId, ...window.OutgoingDeps, ...window.IncomingDeps]);
+
+        let expanded = _expandAncestors(fileId);
+        window.BlastRadiusNodes.forEach(id => { if (_expandAncestors(id)) expanded = true; });
+
+        if (window.GraphEngine) window.GraphEngine.graphData(window.getVisibleGraph());
+        window.syncListUI();
+        _showFocusPill(node);
+        // Stop the camera spinning while the user reads the focused file
+        if (window.AutoRotate) window.AutoRotate.suspendForFocus();
+        CE.open(node);
+
+        setTimeout(() => {
+            const live = window.GraphEngine.graphData().nodes.find(n => n.id === fileId);
+            if (live && typeof live.x === 'number') {
+                const distance = 110;
+                const r = 1 + distance / Math.hypot(live.x, live.y, live.z);
+                window.GraphEngine.cameraPosition(
+                    { x: live.x * r, y: live.y * r, z: live.z * r },
+                    live, 1500
+                );
+            }
+        }, expanded ? 350 : 50);
+    };
+
+    window.clearFocus = function() {
+        window.SelectedNodeId = null;
+        window.OutgoingDeps = new Set();
+        window.IncomingDeps = new Set();
+        window.BlastRadiusNodes = new Set();
+        _hideFocusPill();
+        if (window.AutoRotate) window.AutoRotate.maybeRestore();
+        if (window.GraphEngine) {
+            const G = window.GraphEngine;
+            G.nodeColor(G.nodeColor()).nodeVal(G.nodeVal())
+             .linkColor(G.linkColor()).linkWidth(G.linkWidth())
+             .linkDirectionalParticles(G.linkDirectionalParticles())
+             .linkDirectionalParticleColor(G.linkDirectionalParticleColor());
+        }
+    };
+
+    function _showFocusPill(node) {
+        const pill = document.getElementById('focus-pill');
+        if (pill) {
+            document.getElementById('focus-pill-name').textContent = node.name;
+            document.getElementById('focus-pill-path').textContent = node.id;
+            document.getElementById('focus-pill-out').textContent  = window.OutgoingDeps.size;
+            document.getElementById('focus-pill-in').textContent   = window.IncomingDeps.size;
+            pill.classList.remove('hidden');
+        }
+        document.getElementById('legend-default')?.classList.add('hidden');
+        document.getElementById('legend-focus')?.classList.remove('hidden');
+    }
+    function _hideFocusPill() {
+        document.getElementById('focus-pill')?.classList.add('hidden');
+        document.getElementById('legend-default')?.classList.remove('hidden');
+        document.getElementById('legend-focus')?.classList.add('hidden');
+    }
+
+    // _onGraphLoaded: rebuilds list + pushes data to engine
+    function _onGraphLoaded_apply() {
+        document.getElementById('list-table-body').innerHTML = '';
+        buildListTree('root', 0);
+        window.syncListUI();
+        if (window.GraphEngine) window.GraphEngine.graphData(window.getVisibleGraph());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GRAPH ENGINE — initialised ONCE; refreshes only swap data
+    // ═══════════════════════════════════════════════════════════════
+    const _linkEnd = (l, side) => typeof l[side] === 'object' ? l[side].id : l[side];
+    const _isOutgoing = (l) => window.SelectedNodeId && _linkEnd(l, 'source') === window.SelectedNodeId;
+    const _isIncoming = (l) => window.SelectedNodeId && _linkEnd(l, 'target') === window.SelectedNodeId;
+    const _touchesSelection = (l) => _isOutgoing(l) || _isIncoming(l);
+
+    const _graphElem = document.getElementById('3d-graph');
+    const Graph = ForceGraph3D()(_graphElem)
+        .graphData({nodes:[], links:[]})
+        .nodeRelSize(5)
+        .nodeVal(node => {
+            const base = Math.max(3, node.val / 3);
+            if (!window.SelectedNodeId) return base;
+            if (node.id === window.SelectedNodeId) return base * 2.4;
+            if (window.BlastRadiusNodes.has(node.id)) return base * 1.4;
+            return base * 0.85;
+        })
+        .nodeLabel(node => {
+            const icon = node.type === 'folder' ? '📁' : '📄';
+            const isFocus = node.id === window.SelectedNodeId;
+            const isOut   = window.OutgoingDeps.has(node.id);
+            const isIn    = window.IncomingDeps.has(node.id);
+            let badge = '';
+            if (isFocus)    badge = '<span style="background:#fff;color:#000;padding:1px 6px;border-radius:10px;font-size:10px;margin-left:6px">FOCUS</span>';
+            else if (isOut) badge = '<span style="background:#00F2FF;color:#000;padding:1px 6px;border-radius:10px;font-size:10px;margin-left:6px">IMPORTED</span>';
+            else if (isIn)  badge = '<span style="background:#FF8C00;color:#000;padding:1px 6px;border-radius:10px;font-size:10px;margin-left:6px">IMPORTS THIS</span>';
+            const hint = node.type === 'folder'
+                ? '<br><span style="color:#aaa;font-size:10px;">(Click to expand/collapse)</span>'
+                : '<br><span style="color:#aaa;font-size:10px;">(Click to focus)</span>';
+            return `<div style="text-align:center;font-weight:bold;background:rgba(0,0,0,0.85);padding:8px 10px;border-radius:6px;border:1px solid #333">
+                      <div style="font-size:14px;color:${heatColors[node.heat] || '#fff'}">${icon} ${node.name}${badge}</div>
+                      <div style="font-size:11px;color:#888;margin-top:3px">${node.id}</div>
+                      ${node.type === 'file' ? `<div style="font-size:11px;margin-top:4px">Heat: <span style="color:${heatColors[node.heat]}">${node.heat}</span></div>` : ''}
+                      ${hint}
+                    </div>`;
+        })
+        .nodeColor(node => {
+            // Domain filter dim — only applies when no focus is active and
+            // the node was marked _dimmed by getVisibleGraph().
+            if (!window.SelectedNodeId && node._dimmed) {
+                return node.type === 'folder' ? SEL.ghostD : SEL.ghostF;
+            }
+            if (!window.SelectedNodeId) {
+                return node.type === 'folder' ? '#FFD700' : (heatColors[node.heat] || heatColors["Medium"]);
+            }
+            if (node.id === window.SelectedNodeId)  return SEL.focus;
+            if (window.OutgoingDeps.has(node.id))   return SEL.out;
+            if (window.IncomingDeps.has(node.id))   return SEL.incoming;
+            return node.type === 'folder' ? SEL.ghostD : SEL.ghostF;
+        })
+        .nodeOpacity(0.95)
+        .nodeResolution(20)
+        .linkWidth(link => {
+            if (window.SelectedNodeId) {
+                if (link.type === 'structural') return 0;
+                return _touchesSelection(link) ? 2.4 : 0;
+            }
+            if (link.type === 'structural') return 0.4;
+            // Dep edges: scale 1.0–3.5 by coupling strength
+            const w = link.usage_count || 1;
+            return Math.min(3.5, 0.9 + w * 0.4);
+        })
+        .linkColor(link => {
+            if (window.SelectedNodeId) {
+                if (link.type === 'structural') return 'rgba(0,0,0,0)';
+                if (_isOutgoing(link)) return SEL.out;
+                if (_isIncoming(link)) return SEL.incoming;
+                return 'rgba(0,0,0,0)';
+            }
+            return link.type === 'structural' ? 'rgba(255,255,255,0.07)' : 'rgba(0,242,255,0.35)';
+        })
+        .linkDirectionalParticles(link => {
+            if (link.type !== 'dependency') return 0;
+            if (window.SelectedNodeId) return _touchesSelection(link) ? 4 : 0;
+            // More particles for heavier coupling (1–5)
+            return Math.min(5, link.usage_count || 1);
+        })
+        .linkDirectionalParticleWidth(link => {
+            if (window.SelectedNodeId && _touchesSelection(link)) return 4.0;
+            return 2.0 + Math.min(1.5, (link.usage_count || 1) * 0.15);
+        })
+        .linkDirectionalParticleColor(link => {
+            if (window.SelectedNodeId) {
+                if (_isOutgoing(link)) return SEL.out;
+                if (_isIncoming(link)) return SEL.incoming;
+            }
+            return '#00F2FF';
+        })
+        .linkDirectionalParticleSpeed(() => 0.008)
+        // Solid deep navy — gives every node a uniform backdrop to read
+        // against, no grid bleed-through, and a slight cool tint that makes
+        // the cyan/orange/red palette feel warmer by contrast.
+        .backgroundColor('#0a0d14')
+        .onNodeClick(node => {
+            if (node.type === 'folder') { window.toggleFolderState(node.id); return; }
+            window.focusFileNode(node.id);
+        })
+        .onBackgroundClick(() => {
+            if (window.SelectedNodeId !== null) window.clearFocus();
+        });
+
+    Graph.controls().autoRotate = true;
+    Graph.controls().autoRotateSpeed = 0.5;
+    window.GraphEngine = Graph;
+
+    // ═══════════════════════════════════════════════════════════════
+    // ARCHITECTURE PANEL — re-callable
+    // ═══════════════════════════════════════════════════════════════
+    function _fileRow(filePath, accentClass, rightLabel) {
+        const name = filePath.split('/').pop();
+        const safe = filePath.replace(/'/g, "\\'");
+        return `
+            <div onclick="window.focusFileNode('${safe}')"
+                 class="flex items-center justify-between gap-2 mt-1 px-2 py-1 rounded cursor-pointer
+                        text-sm font-body text-white truncate
+                        hover:bg-white/5 ${accentClass} transition-colors">
+                <span class="truncate" title="${filePath}">📄 ${name}</span>
+                ${rightLabel ? `<span class="text-[10px] opacity-70 shrink-0">${rightLabel}</span>` : ''}
+            </div>`;
+    }
+
+    function _renderArchitecture(arch) {
+        const panel = document.getElementById('ai-panel');
+        panel.innerHTML = '';
+        let godsCount = 0;
+
+        if (arch.monolithic_files && arch.monolithic_files.length > 0) {
+            godsCount = arch.monolithic_files.length;
+            const rows = arch.monolithic_files.slice(0, 8)
+                .map(f => _fileRow(f.file, 'hover:text-[#FF3366]', `${f.dependents} incoming`))
+                .join('');
+            panel.innerHTML += `
+            <div class="arch-section relative bg-surface-container-highest/60 rounded border border-outline-variant/30 shadow-lg" data-count="${arch.monolithic_files.length}">
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-[#FF3366] rounded-l shadow-[0_0_10px_#FF3366]"></div>
+                <div class="arch-section-header flex justify-between items-start p-3 pl-4 mb-0">
+                    <span class="text-xs font-body text-[#FF3366] uppercase tracking-widest font-semibold flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">local_fire_department</span> Monolithic Files
+                    </span>
+                    <span class="text-[10px] text-white bg-[#FF3366]/20 border border-[#FF3366]/50 rounded px-1.5 py-0.5">${arch.monolithic_files.length}</span>
+                </div>
+                <div class="arch-section-body px-3 pb-3 pl-4">
+                    <div class="text-[11px] text-zinc-400 mb-1 leading-relaxed italic">Tightly coupled — many files import these. Click to focus.</div>
+                    ${rows}
+                </div>
+            </div>`;
+        }
+        document.getElementById('stat-gods').innerText = `Monolithic Files: ${godsCount}`;
+
+        if (arch.circular_dependencies && arch.circular_dependencies.length > 0) {
+            const pairRows = arch.circular_dependencies.slice(0, 6).map(c => {
+                const [a, b] = c.files;
+                const aSafe = a.replace(/'/g, "\\'");
+                const bSafe = b.replace(/'/g, "\\'");
+                return `
+                    <div class="flex items-center gap-2 mt-1 text-xs font-body">
+                        <span onclick="window.focusFileNode('${aSafe}')"
+                              class="flex-1 truncate cursor-pointer text-white hover:text-[#FF8C00] px-2 py-1 rounded hover:bg-white/5"
+                              title="${a}">${a.split('/').pop()}</span>
+                        <span class="text-[#FF8C00] shrink-0">⇄</span>
+                        <span onclick="window.focusFileNode('${bSafe}')"
+                              class="flex-1 truncate cursor-pointer text-white hover:text-[#FF8C00] px-2 py-1 rounded hover:bg-white/5"
+                              title="${b}">${b.split('/').pop()}</span>
+                    </div>`;
+            }).join('');
+            panel.innerHTML += `
+            <div class="arch-section relative bg-surface-container-highest/60 rounded border border-outline-variant/30 shadow-lg mt-3" data-count="${arch.circular_dependencies.length}">
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-[#FF8C00] rounded-l shadow-[0_0_10px_#FF8C00]"></div>
+                <div class="arch-section-header flex justify-between items-start p-3 pl-4">
+                    <span class="text-xs font-body text-[#FF8C00] uppercase tracking-widest font-semibold flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">all_inclusive</span> Circular Dependencies
+                    </span>
+                    <span class="text-[10px] bg-[#FF8C00]/20 border border-[#FF8C00]/50 text-white rounded px-1.5 py-0.5">${arch.circular_dependencies.length}</span>
+                </div>
+                <div class="arch-section-body px-3 pb-3 pl-4">
+                    <div class="text-[11px] text-zinc-400 italic mb-1">Each pair imports the other — click either side to focus.</div>
+                    ${pairRows}
+                </div>
+            </div>`;
+        }
+
+        if (arch.dead_files && arch.dead_files.length > 0) {
+            const rows = arch.dead_files.slice(0, 8)
+                .map(f => _fileRow(f.file, 'hover:text-[#849495]', 'unused'))
+                .join('');
+            panel.innerHTML += `
+            <div class="arch-section relative bg-surface-container-highest/60 rounded border border-outline-variant/30 shadow-lg mt-3" data-count="${arch.dead_files.length}">
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-outline rounded-l"></div>
+                <div class="arch-section-header flex justify-between items-start p-3 pl-4">
+                    <span class="text-xs font-body text-outline uppercase tracking-widest font-semibold flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">delete_sweep</span> Dead Files
+                    </span>
+                    <span class="text-[10px] bg-surface-container text-white rounded px-1.5 py-0.5">${arch.dead_files.length}</span>
+                </div>
+                <div class="arch-section-body px-3 pb-3 pl-4">
+                    <div class="text-[11px] text-zinc-400 italic mb-1">No incoming or outgoing project edges.</div>
+                    ${rows}
+                </div>
+            </div>`;
+        }
+
+        if (arch.cross_cutting_files && arch.cross_cutting_files.length > 0) {
+            const rows = arch.cross_cutting_files.slice(0, 8).map(f => {
+                const safe = f.file.replace(/'/g, "\\'");
+                const badges = f.domains.map(d => `<span class="text-[9px] uppercase tracking-wider bg-[#A855F7]/15 text-[#C084FC] px-1.5 py-0.5 rounded mr-1">${d}</span>`).join('');
+                return `
+                    <div onclick="window.focusFileNode('${safe}')"
+                         class="mt-1 px-2 py-1.5 rounded cursor-pointer hover:bg-white/5 transition-colors">
+                        <div class="flex items-center justify-between gap-2 text-sm font-body text-white truncate">
+                            <span class="truncate" title="${f.file}">📄 ${f.file.split('/').pop()}</span>
+                            <span class="text-[10px] text-[#C084FC] shrink-0">${f.domain_count} domains</span>
+                        </div>
+                        <div class="mt-1 flex flex-wrap">${badges}</div>
+                    </div>`;
+            }).join('');
+            panel.innerHTML += `
+            <div class="arch-section relative bg-surface-container-highest/60 rounded border border-outline-variant/30 shadow-lg mt-3" data-count="${arch.cross_cutting_files.length}">
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-[#A855F7] rounded-l shadow-[0_0_10px_#A855F7]"></div>
+                <div class="arch-section-header flex justify-between items-start p-3 pl-4">
+                    <span class="text-xs font-body text-[#C084FC] uppercase tracking-widest font-semibold flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">hub</span> Cross-Cutting Concerns
+                    </span>
+                    <span class="text-[10px] bg-[#A855F7]/20 border border-[#A855F7]/50 text-white rounded px-1.5 py-0.5">${arch.cross_cutting_files.length}</span>
+                </div>
+                <div class="arch-section-body px-3 pb-3 pl-4">
+                    <div class="text-[11px] text-zinc-400 italic mb-1">Files mixing too many concerns (DB + UI + network…). Click to focus.</div>
+                    ${rows}
+                </div>
+            </div>`;
+        }
+
+        if (arch.split_candidates && arch.split_candidates.length > 0) {
+            const rows = arch.split_candidates.slice(0, 6).map(s => {
+                const safe = s.file.replace(/'/g, "\\'");
+                const purposes = s.clusters.map(c => `<span class="text-[10px] uppercase tracking-wider bg-[#10B981]/15 text-[#34D399] px-1.5 py-0.5 rounded mr-1">${c.suggested_purpose} (${c.size})</span>`).join('');
+                return `
+                    <div onclick="window.focusFileNode('${safe}')"
+                         class="mt-1 px-2 py-1.5 rounded cursor-pointer hover:bg-white/5 transition-colors">
+                        <div class="flex items-center justify-between gap-2 text-sm font-body text-white truncate">
+                            <span class="truncate" title="${s.file}">📄 ${s.file.split('/').pop()}</span>
+                            <span class="text-[10px] text-[#34D399] shrink-0">${s.clusters.length} groups</span>
+                        </div>
+                        <div class="mt-1 flex flex-wrap gap-y-1">${purposes}</div>
+                    </div>`;
+            }).join('');
+            panel.innerHTML += `
+            <div class="arch-section relative bg-surface-container-highest/60 rounded border border-outline-variant/30 shadow-lg mt-3" data-count="${arch.split_candidates.length}">
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-[#10B981] rounded-l shadow-[0_0_10px_#10B981]"></div>
+                <div class="arch-section-header flex justify-between items-start p-3 pl-4">
+                    <span class="text-xs font-body text-[#34D399] uppercase tracking-widest font-semibold flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">call_split</span> Split Candidates
+                    </span>
+                    <span class="text-[10px] bg-[#10B981]/20 border border-[#10B981]/50 text-white rounded px-1.5 py-0.5">${arch.split_candidates.length}</span>
+                </div>
+                <div class="arch-section-body px-3 pb-3 pl-4">
+                    <div class="text-[11px] text-zinc-400 italic mb-1">Files with disconnected symbol groups — natural split points.</div>
+                    ${rows}
+                </div>
+            </div>`;
+        }
+
+        // Auto-collapse: keep highest-count section open, collapse the rest
+        const sections = panel.querySelectorAll('.arch-section');
+        if (sections.length > 1) {
+            let maxCount = -1, maxIdx = 0;
+            sections.forEach((s, i) => { const c = parseInt(s.dataset.count || 0); if (c > maxCount) { maxCount = c; maxIdx = i; } });
+            sections.forEach((s, i) => {
+                const body = s.querySelector('.arch-section-body');
+                if (body && i !== maxIdx) body.style.display = 'none';
             });
-            
-            // RECURSIVE BUILDER
-            function buildListTree(parentId, level=0) {
-                const children = childrenMap[parentId] || [];
-                // Sort folders first, then logic files by complexity
-                children.sort((a, b) => {
-                    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
-                    return b.val - a.val;
-                });
-                
-                children.forEach(node => {
-                    const tr = document.createElement('tr');
-                    const isFolder = node.type === 'folder';
-                    
-                    tr.className = `border-b border-outline-variant/10 hover:bg-surface-container transition-colors row-item`;
-                    tr.setAttribute('data-parent', parentId);
-                    tr.setAttribute('data-id', node.id);
-                    tr.style.display = parentId !== 'root' ? 'none' : 'table-row'; // Hide nested natively
+        }
+        if (window.makeCollapsible) window.makeCollapsible();
 
-                    const padding = (level * 24) + 16;
-                    
-                    let iconHtml = '';
-                    if (isFolder) {
-                        iconHtml = `<button onclick="toggleFolderState('${node.id}', event)" class="mr-2 hover:text-white transition-colors" style="width: 20px;"><span class="material-symbols-outlined text-[16px] transition-transform" id="chev-${node.id}">chevron_right</span></button>
-                                    <span class="material-symbols-outlined text-[16px] text-[#FFD700] mr-2">folder</span>`;
-                    } else {
-                        iconHtml = `<span class="inline-block w-[20px] mr-2"></span><span class="material-symbols-outlined text-[16px] text-[#00f2ff] mr-2">description</span>`;
-                    }
+        if (panel.innerHTML === '') {
+            const nodeCount = window.GlobalGraphData?.nodes?.filter(n => n.type === 'file').length || 0;
+            const isSmall = nodeCount < 10;
+            panel.innerHTML = `
+            <div class="relative bg-surface-container-highest/60 rounded p-4 text-center border border-[#00f2ff]/40 shadow-[0_0_20px_rgba(0,242,255,0.2)]">
+                <span class="material-symbols-outlined text-[#00f2ff] text-4xl mb-2 drop-shadow-md">check_circle</span>
+                <div class="text-sm font-semibold text-white uppercase tracking-widest">Clean Architecture</div>
+                <div class="text-xs text-zinc-400 mt-2 leading-relaxed">${
+                    isSmall
+                    ? `${nodeCount} file${nodeCount !== 1 ? 's' : ''} analysed. No anti-patterns yet — as your codebase grows, monoliths, circular deps, and split candidates will surface here.`
+                    : 'No structural anti-patterns detected across ' + nodeCount + ' files. Keep shipping.'
+                }</div>
+                ${isSmall ? `
+                <div class="mt-3 text-[10px] text-zinc-500 leading-relaxed">
+                    <b class="text-zinc-400">Tips:</b> Click any node to explore it &nbsp;·&nbsp; Press <kbd style="background:rgba(255,255,255,0.08);border-radius:3px;padding:0 4px">/</kbd> to search &nbsp;·&nbsp; Press <kbd style="background:rgba(255,255,255,0.08);border-radius:3px;padding:0 4px">R</kbd> to re-centre
+                </div>` : ''}
+            </div>`;
+        }
+    }
 
-                    tr.innerHTML = `
-                        <td class="p-4 py-2 font-mono" style="padding-left: ${padding}px;">
-                            <div class="flex items-center text-zinc-300">
-                                ${iconHtml}
-                                ${node.name}
-                            </div>
-                            ${!isFolder && node.symbols ? `<div class="text-[10px] text-zinc-500 mt-0.5" style="margin-left: 48px;">${node.symbols.length} materials</div>` : ''}
-                        </td>
-                        <td class="p-4 py-2">${!isFolder ? `<span class="bg-surface-container px-2 py-1 rounded text-[10px] text-outline border border-outline-variant/30">${node.language}</span>` : ''}</td>
-                        <td class="p-4 py-2 text-right">
-                            ${!isFolder ? `<span class="font-bold cursor-help" title="${node.heat}" style="color: ${heatColors[node.heat]}; text-shadow: 0 0 10px ${heatColors[node.heat]}66;">${node.val - 1}</span>` : ''}
-                        </td>
-                        <td class="p-4 py-2 text-zinc-400 italic text-[11px]">${!isFolder && node.purpose ? node.purpose : ''}</td>
-                    `;
-                    tbody.appendChild(tr);
-                    
-                    if (isFolder) {
-                        buildListTree(node.id, level + 1);
-                    }
-                });
-            }
-            
-            buildListTree('root', 0); // Trigger cascade
-            
-            // BIDIRECTIONAL SYNC ENGINE (LIST + 3D)
-            window.syncListUI = function() {
-                const rows = document.querySelectorAll('.row-item');
-                rows.forEach(r => {
-                    const pid = r.getAttribute('data-parent');
-                    const id = r.getAttribute('data-id');
-                    
-                    // Visible only if all ancestors are expanded
-                    let isVisible = true;
-                    let curr = pid;
-                    while (curr && curr !== 'root') {
-                        if (!ExpandedFolders.has(curr)) {
-                            isVisible = false;
-                            break;
-                        }
-                        // Find ancestor's parent securely
-                        const node = data.nodes.find(n => n.id === curr);
-                        curr = node ? node.parent : null;
-                    }
-                    
-                    r.style.display = isVisible ? 'table-row' : 'none';
-                    
-                    const chev = document.getElementById('chev-' + id);
-                    if (chev) chev.innerText = ExpandedFolders.has(id) ? 'expand_more' : 'chevron_right';
-                });
-            };
+    // ═══════════════════════════════════════════════════════════════
+    // SYNC INDICATOR + MASTER REFRESH + SSE LIVE RELOAD
+    // ═══════════════════════════════════════════════════════════════
+    function _showSyncIndicator() {
+        document.getElementById('sync-indicator')?.classList.remove('hidden');
+    }
+    function _hideSyncIndicator() {
+        document.getElementById('sync-indicator')?.classList.add('hidden');
+    }
 
-            window.toggleFolderState = function(folderId, event=null) {
-                if (event) event.stopPropagation();
-                
-                if (ExpandedFolders.has(folderId)) {
-                    // Collapse mode
-                    ExpandedFolders.delete(folderId);
-                    // Recursively remove descendants so they close natively
-                    const collapseDescendants = (id) => {
-                        const children = childrenMap[id] || [];
-                        children.forEach(c => {
-                            if (c.type === 'folder' && ExpandedFolders.has(c.id)) {
-                                ExpandedFolders.delete(c.id);
-                                collapseDescendants(c.id);
-                            }
-                        });
-                    };
-                    collapseDescendants(folderId);
-                } else {
-                    // Expand mode
-                    ExpandedFolders.add(folderId);
-                }
-                
-                // Blast state into 3D Graphic Engine 
-                if (window.GraphEngine) {
-                    window.GraphEngine.graphData(getVisibleGraph());
-                }
-                
-                // Blast state into Directory List UI
-                window.syncListUI();
-            };
+    async function refreshAll(changedPaths) {
+        const [data, arch] = await Promise.all([
+            fetch('/api/graph').then(r => r.json()),
+            fetch('/api/architecture').then(r => r.json()),
+        ]);
 
-            // Initialize 3D Graph
-            const elem = document.getElementById('3d-graph');
-            const Graph = ForceGraph3D()(elem)
-                .graphData(getVisibleGraph())
-                
-                // Fallback to high-performance Glowing Spheres
-                .nodeRelSize(5) 
-                .nodeVal(node => Math.max(3, (node.val / 3))) 
-                .nodeLabel(node => {
-                    const icon = node.type === 'folder' ? '📁' : '📄';
-                    const hint = node.type === 'folder' ? '<br><span style="color:#aaa;font-size:10px;">(Click to Expand/Collapse)</span>' : '';
-                    return `<div style="text-align: center; font-weight: bold; background: rgba(0,0,0,0.8); padding: 8px; border-radius: 6px; border: 1px solid #333;">
-                                <div style="font-size: 16px; color: ${heatColors[node.heat] || '#fff'}">${icon} ${node.name}</div>
-                                <div style="font-size: 11px; color: #888; margin-top: 4px;">${node.id}</div>
-                                ${node.type === 'file' ? `<div style="font-size: 12px; margin-top: 5px;">Complexity: <span style="color: ${heatColors[node.heat]};">${node.heat}</span></div>` : ''}
-                                ${hint}
-                            </div>`;
-                })
-                .nodeColor(node => {
-                    if (window.SelectedNodeId && node.type === 'file') {
-                        if (node.id === window.SelectedNodeId) return '#FF0055'; // Selected Node is Neon Red
-                        if (window.BlastRadiusNodes.has(node.id)) return '#FF8C00'; // Neighbors glow orange
-                        return 'rgba(50, 50, 50, 0.1)'; // Dim everything else completely
-                    }
-                    return node.type === 'folder' ? '#FFD700' : (heatColors[node.heat] || heatColors["Medium"]);
-                })
-                .nodeResolution(24) // Optimal res for fallback boundaries
-                
-                // Link visuals (Structural vs Dependency)
-                .linkWidth(link => {
-                    if (link.type === 'structural') return 0.5;
-                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
-                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
-                    if (window.SelectedNodeId && (sId === window.SelectedNodeId || tId === window.SelectedNodeId)) return 4.0;
-                    return 2.0;
-                })
-                .linkColor(link => {
-                    if (link.type === 'structural') return 'rgba(255, 255, 255, 0.1)';
-                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
-                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
-                    if (window.SelectedNodeId && (sId === window.SelectedNodeId || tId === window.SelectedNodeId)) return 'rgba(255, 0, 85, 0.9)'; // Red alert line
-                    if (window.SelectedNodeId) return 'rgba(0, 242, 255, 0.05)'; // Dim unrelated
-                    return 'rgba(0, 242, 255, 0.4)';
-                })
-                .linkDirectionalParticles(link => {
-                    if (link.type !== 'dependency') return 0;
-                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
-                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
-                    if (window.SelectedNodeId && (sId === window.SelectedNodeId || tId === window.SelectedNodeId)) return 6; // Double particles for blast
-                    if (window.SelectedNodeId) return 0; // Disable others
-                    return 3;
-                })
-                .linkDirectionalParticleWidth(link => {
-                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
-                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
-                    if (window.SelectedNodeId && (sId === window.SelectedNodeId || tId === window.SelectedNodeId)) return 5.0; 
-                    return 3.0;
-                })
-                .linkDirectionalParticleColor(link => {
-                    const sId = typeof link.source === 'object' ? link.source.id : link.source;
-                    const tId = typeof link.target === 'object' ? link.target.id : link.target;
-                    if (window.SelectedNodeId && (sId === window.SelectedNodeId || tId === window.SelectedNodeId)) return '#FF0055'; 
-                    return '#00F2FF';
-                })
-                .linkDirectionalParticleSpeed(d => 0.008)
-                
-                .backgroundColor('rgba(0,0,0,0)') // Transparent to show tailwind grid
-                .onNodeClick(node => {
-                    
-                    if (node.type === 'folder') {
-                        // Tie directly into global sync mechanic
-                        window.toggleFolderState(node.id);
-                    } else {
-                        // File clicked: Update Inspector
-                        const panel = document.getElementById('inspector-panel');
-                        panel.classList.remove('hidden');
-                        
-                        document.getElementById('inspect-title').innerText = node.name;
-                        document.getElementById('inspect-path').innerText = `${node.id} — ${node.language} (${node.symbols.length} objects)`;
-                        
-                        const heatEl = document.getElementById('inspect-heat');
-                        heatEl.innerText = node.heat;
-                        heatEl.style.color = heatColors[node.heat] || "white";
-                        
-                        document.getElementById('inspect-purpose').innerText = node.purpose || "Generic Utility";
-                        document.getElementById('inspect-narration').innerText = node.narration || "No context provided.";
+        // 1. Update raw state
+        window.GlobalGraphData = data;
+        childrenMap = _buildChildrenMap(data);
+        const fileCount = data.nodes.filter(n => n.type === 'file').length;
+        document.getElementById('stat-nodes').innerText = `Total Nodes: ${data.nodes.length}`;
+        document.getElementById('stat-edges').innerText = `Total Edges: ${data.links.length}`;
 
-                        // Trigger Blast Radius
-                        window.SelectedNodeId = node.id;
-                        window.BlastRadiusNodes = new Set([node.id]);
-                        
-                        // Find all direct dependency neighbors
-                        const graphData = getVisibleGraph();
-                        graphData.links.forEach(l => {
-                            if (l.type === 'dependency') {
-                                const sId = typeof l.source === 'object' ? l.source.id : l.source;
-                                const tId = typeof l.target === 'object' ? l.target.id : l.target;
-                                if (sId === node.id) window.BlastRadiusNodes.add(tId);
-                                if (tId === node.id) window.BlastRadiusNodes.add(sId);
-                            }
-                        });
-                        
-                        // Force WebGL updates
-                        Graph.nodeColor(Graph.nodeColor())
-                             .linkColor(Graph.linkColor())
-                             .linkWidth(Graph.linkWidth())
-                             .linkDirectionalParticles(Graph.linkDirectionalParticles())
-                             .linkDirectionalParticleWidth(Graph.linkDirectionalParticleWidth())
-                             .linkDirectionalParticleColor(Graph.linkDirectionalParticleColor());
+        // 2. Update header live-stats
+        const hsFiles = document.getElementById('hs-files');
+        const hsMonoliths = document.getElementById('hs-monoliths');
+        const hsCycles = document.getElementById('hs-cycles');
+        if (hsFiles) {
+            document.getElementById('header-stats').classList.remove('hidden');
+            hsFiles.textContent = `${fileCount} files`;
+            hsMonoliths.textContent = arch.monolithic_files?.length
+                ? `${arch.monolithic_files.length} monolith${arch.monolithic_files.length > 1 ? 's' : ''}`
+                : '0 monoliths';
+            hsCycles.textContent = arch.circular_dependencies?.length
+                ? `${arch.circular_dependencies.length} cycle${arch.circular_dependencies.length > 1 ? 's' : ''}`
+                : '0 cycles';
+        }
 
-                        const symContainer = document.getElementById('inspect-symbols');
-                        symContainer.innerHTML = ''; // wipe
-                        
-                        if(node.symbols && node.symbols.length > 0) {
-                            node.symbols.forEach(sym => {
-                                const d = document.createElement('div');
-                                d.className = "flex items-center justify-between p-2 hover:bg-surface-container rounded cursor-pointer transition-colors group";
-                                d.innerHTML = `
-                                    <div class="flex items-center gap-2 overflow-hidden">
-                                        <span class="material-symbols-outlined text-[14px]" style="color: ${heatColors[node.heat]}">code_blocks</span>
-                                        <span class="font-mono text-xs text-white truncate">${sym}</span>
-                                    </div>
-                                `;
-                                symContainer.appendChild(d);
-                            });
-                        } else {
-                            symContainer.innerHTML = '<div class="text-xs text-outline italic p-3 bg-black/20 rounded">No internal materials exported.</div>';
-                        }
-                    }
+        // 3. Rebuild the directory list (preserves ExpandedFolders) and push to engine
+        _onGraphLoaded_apply();
 
-                    // Fly camera to node smoothly
-                    const distance = 90;
-                    const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
-                    Graph.cameraPosition(
-                        { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
-                        node,
-                        1500
-                    );
-                })
-                .onBackgroundClick(() => {
-                    // Reset Blast Radius on empty click
-                    if (window.SelectedNodeId !== null) {
-                        window.SelectedNodeId = null;
-                        window.BlastRadiusNodes.clear();
-                        
-                        // Force WebGL restore
-                        Graph.nodeColor(Graph.nodeColor())
-                             .linkColor(Graph.linkColor())
-                             .linkWidth(Graph.linkWidth())
-                             .linkDirectionalParticles(Graph.linkDirectionalParticles())
-                             .linkDirectionalParticleWidth(Graph.linkDirectionalParticleWidth())
-                             .linkDirectionalParticleColor(Graph.linkDirectionalParticleColor());
-                    }
-                });
-                
-            // Fix Interactivity Lag: Use Native Engine Rotation instead of setInterval!
-            Graph.controls().autoRotate = true;
-            Graph.controls().autoRotateSpeed = 0.5;
-            
-            // Expose Graph to window for sync mechanic
-            window.GraphEngine = Graph;
+        // 4. Rebuild the architecture panel
+        _renderArchitecture(arch);
+
+        // 5. Re-apply or clear focus depending on whether the file still exists
+        if (window.SelectedNodeId) {
+            const stillThere = data.nodes.find(n => n.id === window.SelectedNodeId);
+            if (stillThere) window.focusFileNode(window.SelectedNodeId);
+            else window.clearFocus();
+        }
+
+        // 6. Fire graph extras (cluster labels, filter chips, etc.)
+        if (window.initGraphExtras) window.initGraphExtras(data);
+        if (changedPaths?.length && window._reportChangedFiles) {
+            window._reportChangedFiles(changedPaths);
+        }
+
+        // 7. Ticker refresh time
+        const sr = document.getElementById('stat-refresh');
+        if (sr) sr.textContent = `Refreshed ${new Date().toLocaleTimeString()}`;
+    }
+
+    // Initial load
+    refreshAll();
+
+    // Live reload via Server-Sent Events.
+    if (window.EventSource) {
+        const sse = new EventSource('/api/events');
+        sse.addEventListener('refresh', e => {
+            let changed = [];
+            try { const d = JSON.parse(e.data); changed = d.changed || []; } catch {}
+            _showSyncIndicator();
+            refreshAll(changed).finally(() => setTimeout(_hideSyncIndicator, 700));
         });
-
-    // Load architectural AI data
-    fetch('/api/architecture')
-        .then(res => res.json())
-        .then(data => {
-            const panel = document.getElementById('ai-panel');
-            panel.innerHTML = '';
-            
-            let godsCount = 0;
-            
-            // Render Monolithic Files
-            if(data.monolithic_files && data.monolithic_files.length > 0) {
-                godsCount = data.monolithic_files.length;
-                let cHTML = '';
-                data.monolithic_files.slice(0,5).forEach(f => {
-                    cHTML += `<div class="text-sm font-body text-white truncate mt-1 hover:text-[#00f2ff] transition-colors cursor-pointer">${f.file.split('/').pop()} <span class="text-xs text-[#ff0055]">(${f.dependents} incoming)</span></div>`;
-                });
-                
-                panel.innerHTML += `
-                <div class="relative bg-surface-container-highest/60 rounded p-3 pl-4 border border-outline-variant/30 shadow-lg">
-                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-[#ff0055] rounded-l shadow-[0_0_10px_#ff0055]"></div>
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-xs font-body text-[#ff0055] uppercase tracking-widest font-semibold flex items-center gap-1">
-                            <span class="material-symbols-outlined text-[14px]">local_fire_department</span> Monolithic Files
-                        </span>
-                        <span class="text-[10px] text-white bg-[#ff0055]/20 border border-[#ff0055]/50 rounded px-1.5 py-0.5">${data.monolithic_files.length} Critical</span>
-                    </div>
-                    <div class="text-[11px] text-zinc-300 mb-2 leading-relaxed italic">Files dangerously tightly coupled with too many incoming dependencies.</div>
-                    ${cHTML}
-                </div>`;
-            }
-            
-            document.getElementById('stat-gods').innerText = `Monolithic Files: ${godsCount}`;
-
-            // Render Circular Deps
-            if(data.circular_dependencies && data.circular_dependencies.length > 0) {
-                panel.innerHTML += `
-                <div class="relative bg-surface-container-highest/60 rounded p-3 pl-4 border border-outline-variant/30 shadow-lg mt-3">
-                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-[#FF8C00] rounded-l shadow-[0_0_10px_#FF8C00]"></div>
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-xs font-body text-[#FF8C00] uppercase tracking-widest font-semibold flex items-center gap-1">
-                            <span class="material-symbols-outlined text-[14px]">all_inclusive</span> Circular Dependencies
-                        </span>
-                        <span class="text-[10px] bg-[#FF8C00]/20 border border-[#FF8C00]/50 text-white rounded px-1.5 py-0.5">${data.circular_dependencies.length} Loops</span>
-                    </div>
-                    <div class="text-[11px] text-zinc-300 leading-relaxed italic">
-                        ${data.circular_dependencies[0].suggestion.replace(/,/g, ',<br>')}
-                    </div>
-                </div>`;
-            }
-
-            // Render Dead files
-            if(data.dead_files && data.dead_files.length > 0) {
-                panel.innerHTML += `
-                <div class="relative bg-surface-container-highest/60 rounded p-3 pl-4 border border-outline-variant/30 shadow-lg mt-3">
-                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-outline rounded-l"></div>
-                    <div class="flex justify-between items-start mb-2">
-                        <span class="text-xs font-body text-outline uppercase tracking-widest font-semibold flex items-center gap-1">
-                            <span class="material-symbols-outlined text-[14px]">delete_sweep</span> Dead Files
-                        </span>
-                        <span class="text-[10px] bg-surface-container text-white rounded px-1.5 py-0.5">${data.dead_files.length} Unused</span>
-                    </div>
-                    <div class="text-[11px] text-zinc-400 italic">Archived or disconnected files with zero local references.</div>
-                </div>`;
-            }
-            
-            // If completely clean
-            if(panel.innerHTML === '') {
-                panel.innerHTML = `
-                <div class="relative bg-surface-container-highest/60 rounded p-4 text-center border border-[#00f2ff]/40 shadow-[0_0_20px_rgba(0,242,255,0.2)]">
-                    <span class="material-symbols-outlined text-[#00f2ff] text-4xl mb-2 drop-shadow-md">check_circle</span>
-                    <div class="text-sm font-semibold text-white uppercase tracking-widest">Optimal Architecture</div>
-                    <div class="text-xs text-zinc-300 mt-2">No structural anti-patterns detected in the tree map.</div>
-                </div>`;
-            }
-        });
+    }
 </script>
+<script src="/code-explorer.js"></script>
+<script src="/graph-extras.js"></script>
+<script src="/search.js"></script>
 </body>
 </html>
