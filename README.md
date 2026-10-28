@@ -1,9 +1,15 @@
 # Brahm-Kosh
 
+[![Tests](https://github.com/KrishG7/Brahm-Kosh/actions/workflows/test.yml/badge.svg)](https://github.com/KrishG7/Brahm-Kosh/actions/workflows/test.yml)
+![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+
 > **Codebase Intelligence Engine.**
 > Reads source code without running it. Tells you the structure, the
 > hotspots, the cross-cutting concerns, and what would break if you
 > changed any of it.
+
+![The Architectural Intelligence panel and the 3D code map](docs/viewer.png)
 
 ---
 
@@ -40,12 +46,12 @@ runtime dependencies beyond `click` and `rich` for the CLI output.
 ## Install
 
 ```bash
-git clone https://github.com/yourname/Brahm-Kosh
+git clone https://github.com/KrishG7/Brahm-Kosh.git
 cd Brahm-Kosh
 pip install -e .
 ```
 
-Requires Python ≥ 3.9.
+Requires Python ≥ 3.9. CI runs on 3.11; the suite also passes on 3.14.
 
 ---
 
@@ -137,9 +143,16 @@ brahm-kosh list-adapters
 - Only files known to the project can be overwritten (no arbitrary writes)
 
 ### Testing
-58 pytest tests covering adapters, the import resolver, security gates,
-SSE, multi-hop impact, domain classification, refactor clustering, and
-symbol-level impact. Run with `pytest tests/`.
+61 pytest tests covering adapters, the import resolver, security gates,
+SSE, multi-hop impact, domain classification, refactor clustering,
+symbol-level impact and `.brahmkoshignore`. Run with
+`pip install -e ".[dev]" && pytest`.
+
+### Ignoring files
+Put one glob per line in `.brahmkoshignore` at the project root
+(`dist/`, `*.min.js`, `generated/`). A pattern with a trailing slash
+matches a directory and everything under it. Start from
+[`.brahmkoshignore.example`](.brahmkoshignore.example).
 
 ---
 
@@ -202,8 +215,8 @@ template literals, multi-line C++ signatures) but at the cost of:
 - C compilation on install (or pre-built wheels per OS/Python combo)
 - Killing the "drop in any environment" simplicity
 
-The current parsers correctly extract symbols on ~85% of real code.
-That's the right v1 trade. The day someone runs Brahm-Kosh on a
+The regex parsers miss edge cases (see [Known limits](#known-limits)), and
+only Python gets a true AST. That's the right v1 trade. The day someone runs Brahm-Kosh on a
 50k-line TypeScript app and gets garbage, tree-sitter can ship behind
 an optional `pip install brahm-kosh[treesitter]` extra.
 
@@ -235,6 +248,23 @@ When `brahm-kosh serve` is running:
 
 ---
 
+## Known limits
+
+- **Only Python is parsed with a real AST.** The other 12 languages use
+  regex adapters, so unusual syntax (nested generics, template literals,
+  multi-line C++ signatures) can be missed or mis-attributed.
+- **Symbol-level impact is Python-only.** Other languages get file-level
+  impact.
+- **Imports are resolved from source text**, not by running a build
+  system, so generated files, path aliases and dynamic imports are not
+  followed.
+- **The 3D viewer loads Three.js and 3d-force-graph from a CDN**, so it
+  needs an internet connection the first time.
+- **Complexity is a weighted heuristic**, not cyclomatic complexity;
+  compare scores within one project, not across projects.
+
+---
+
 ## Complexity scoring
 
 Each symbol is scored on a 0–100 scale via a weighted formula:
@@ -257,8 +287,9 @@ that have one nightmare function dragging the rest down.
 - **v1.0 (now)** — Multi-language structure, complexity, dependency graph,
   multi-hop impact (file + Python symbol), domain classification,
   refactor clustering, 3D viewer, watch mode.
-- **v1.5** — `.brahmkoshignore`, fuzzy file search (`/` shortcut),
-  per-language ignore patterns, optional tree-sitter backend.
+- **v1.5** — optional tree-sitter backend, per-language ignore
+  patterns. (`.brahmkoshignore` and fuzzy file search with `/` have
+  shipped.)
 - **v2.0** — Symbol-level impact across non-Python languages (depends
   on tree-sitter), call-graph-based "find all callers" beyond import
   boundaries, configurable domain table.

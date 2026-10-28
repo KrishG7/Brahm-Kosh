@@ -52,7 +52,10 @@ def is_ignored(rel_path: str, patterns: list[str]) -> bool:
     """Return True if rel_path matches any ignore pattern."""
     name = os.path.basename(rel_path)
     for pat in patterns:
-        if fnmatch.fnmatch(rel_path, pat) or fnmatch.fnmatch(name, pat):
+        # "dist/" names a directory. The walker tests directories without the
+        # trailing slash, so drop it or the pattern never matches anything.
+        pat = pat.rstrip("/")
+        if pat and (fnmatch.fnmatch(rel_path, pat) or fnmatch.fnmatch(name, pat)):
             return True
     return False
 

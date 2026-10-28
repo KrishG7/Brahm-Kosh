@@ -14,13 +14,13 @@ from __future__ import annotations
 import importlib
 import os
 
-from brahm_kosh.adapters.registry import detect_languages, get_adapter
+from brahm_kosh.adapters.registry import detect_languages, get_adapter, is_ignored, load_ignore_patterns
 from brahm_kosh.analysis.complexity import score_project
 from brahm_kosh.analysis.hotspots import Hotspot, find_hotspots
 from brahm_kosh.analysis.purpose import infer_purposes
 from brahm_kosh.analysis.dependencies import compute_lexical_dependencies
 from brahm_kosh.analysis.domains import annotate_project as annotate_domains
-from brahm_kosh.models import Project
+from brahm_kosh.models import Module, Project
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +122,7 @@ def analyze(
             continue
 
         sub_project = adapter(root_path)
+        _drop_ignored(sub_project, load_ignore_patterns(root_path))
 
         # Each adapter's parse_file is wrapped in @memoize_by_mtime, so the
         # parsing itself is already skipped for unchanged files — no extra
@@ -160,6 +161,30 @@ def analyze(
     hotspots = find_hotspots(merged, top_n=top_n)
 
     return merged, hotspots
+
+
+def _path_ignored(rel_path: str, patterns: list[str]) -> bool:
+    """True if the path, or any directory above it, matches an ignore pattern."""
+    parts = rel_path.replace("\\", "/").split("/")
+    return any(is_ignored("/".join(parts[: i + 1]), patterns) for i in range(len(parts)))
+
+
+def _drop_ignored(project: Project, patterns: list[str]) -> None:
+    """Remove files matched by .brahmkoshignore. The adapters walk the tree
+    themselves, so the patterns are applied to what they return."""
+    if not patterns:
+        return
+
+    def prune(module: Module) -> None:
+        module.files = [f for f in module.files if not _path_ignored(f.relative_path, patterns)]
+        for sub in module.submodules:
+            prune(sub)
+        module.submodules = [m for m in module.submodules if m.files or m.submodules]
+
+    project.root_files = [f for f in project.root_files if not _path_ignored(f.relative_path, patterns)]
+    for module in project.modules:
+        prune(module)
+    project.modules = [m for m in project.modules if m.files or m.submodules]
 
 
 def _merge_projects(sub_projects: list[Project], root_path: str) -> Project:
