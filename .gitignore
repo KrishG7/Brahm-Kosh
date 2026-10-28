@@ -30,10 +30,6 @@ htmlcov/
 # OS
 .DS_Store
 
-# Local-only planning + AI agent state — not for the public repo
-.planning/
-.claude/
-.cursor/
 
 # Project report (kept locally; not part of the source artifact)
 REPORT.md
